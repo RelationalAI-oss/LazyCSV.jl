@@ -1,0 +1,4 @@
+name = "LazyCSV"
+uuid = "c90d020c-4757-11e9-1ca1-6ba9e71288b1"
+authors = ["Mohammad Dashti <mdashti@gmail.com>"]
+version = "0.1.0"
