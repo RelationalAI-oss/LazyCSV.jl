@@ -4,4 +4,5 @@ authors = ["Mohammad Dashti <mdashti@gmail.com>"]
 version = "0.1.0"
 
 [deps]
+LazyJSON = "fc18253b-5e1b-504c-a4a2-9ece4944c004"
 Testy = "3e3c03f2-1a94-11e9-2981-050a4ca824ab"
