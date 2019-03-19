@@ -68,8 +68,8 @@ const ZERO_UINT8 = UInt8(0)
 const ZERO = IntTp(0)
 const ONE = IntTp(1)
 
-function read_csv_line!(s::IO, delim::UInt8, fields::BufferedVector{WeakRefString{UInt8}},
-                        buff::Vector{UInt8}, eager_parse_fields::Bool)
+function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8,
+                        fields::BufferedVector{WeakRefString{UInt8}}, eager_parse_fields::Bool)
     buff_ptr::Ptr{UInt8} = pointer(buff)
     buff_len::IntTp = IntTp(length(buff))
     
@@ -92,7 +92,8 @@ function read_csv_line!(s::IO, delim::UInt8, fields::BufferedVector{WeakRefStrin
                     fields_len <<= ONE
                     resize!(fields_buff, fields_len)
                 end
-                @inbounds fields_buff[num_fields_read] = WeakRefString{UInt8}(buff_ptr+prev_field_index, num_bytes_read-prev_field_index-ONE)
+                @inbounds fields_buff[num_fields_read] = WeakRefString{UInt8}(buff_ptr+prev_field_index, 
+                                                                              num_bytes_read-prev_field_index-ONE)
                 prev_field_index = num_bytes_read
             end
             if num_bytes_read > buff_len
@@ -110,7 +111,8 @@ function read_csv_line!(s::IO, delim::UInt8, fields::BufferedVector{WeakRefStrin
                 fields_len <<= ONE
                 resize_vec!(fields_buff, fields_len)
             end
-            @inbounds fields_buff[num_fields_read] = WeakRefString{UInt8}(buff_ptr+prev_field_index, num_bytes_read-prev_field_index-ONE)
+            @inbounds fields_buff[num_fields_read] = WeakRefString{UInt8}(buff_ptr+prev_field_index,
+                                                                          num_bytes_read-prev_field_index-ONE)
             fields.size = num_fields_read
         end
         WeakRefString{UInt8}(buff_ptr, num_bytes_read)
@@ -120,11 +122,91 @@ function read_csv_line!(s::IO, delim::UInt8, fields::BufferedVector{WeakRefStrin
     end
 end
 
-# function read_csv_line!(input::IO, buff::IOBuffer)
-#     read_csv_line!(input, buff.data)
-# end
+mutable struct Counter
+    v::Int
+end
 
-# import InteractiveUtils
+struct File{IO_TYPE}
+    input::IO_TYPE
+    delim::UInt8
+    eager_parse_fields::Bool
+    line_buff::Vector{UInt8}
+    fields_buff::BufferedVector{WeakRefString{UInt8}}
+    current_line::Counter
+    function File(input::IO_TYPE, delim::UInt8,
+                  eager_parse_fields::Bool, line_buff::Vector{UInt8},
+                  fields_buff::BufferedVector{WeakRefString{UInt8}}) where {IO_TYPE}
+        new{IO_TYPE}(input, delim, eager_parse_fields, line_buff, fields_buff, Counter(0))
+    end
+end
+
+function File(input::IO, delim::Char, eager_parse_fields::Bool)
+    buff = Vector{UInt8}()
+    resize!(buff, DEFAULT_LINE_LEN)
+
+    fields = BufferedVector{WeakRefString{UInt8}}()
+    resize!(fields, DEFAULT_NUM_FIELDS)
+
+    File(input, UInt8(delim), eager_parse_fields, buff, fields)
+end
+
+function read_csv_line!(Base.@nospecialize(s::IO), buff::IOBuffer, delim::UInt8,
+                        fields::BufferedVector{WeakRefString{UInt8}}, eager_parse_fields::Bool)
+    read_csv_line!(s, buff.data, delim, fields, eager_parse_fields)
+end
+
+function read_csv_line!(f::File, eager_parse_fields::Bool=f.eager_parse_fields)
+    read_csv_line!(f.input, f.line_buff, f.delim, f.fields_buff, eager_parse_fields)
+end
+
+const DO_NOT_PARSE_LINE_EAGERLY = false
+
+function Base.iterate(f::File, state::Int = 1)
+    if f.current_line.v + 1 == state
+        next_line = read_csv_line!(f)
+        if next_line === nothing
+            nothing
+        else
+            f.current_line.v += 1
+            (state+1, state+1)
+        end
+    # elseif f.current_line.v < state
+    #     while f.current_line.v + 1 != state
+    #         read_csv_line!(f, DO_NOT_PARSE_LINE_EAGERLY)
+    #         f.current_line.v += 1
+    #     end
+    #     iterate(f, state)
+    else
+        #TODO: shall we throw an error here?
+        # we are expecting the user to always scan sequentially
+        nothing
+    end
+end
+
+result_line_collection(f::File) = Vector{String}()
+result_collection(f::File) = Vector{Vector{String}}()
+
+function materialize_line(f::File, line)
+    line_vec = result_line_collection(f)
+    for field in f.fields_buff
+        push!(line_vec, string(field))
+    end
+    line_vec
+end
+
+function materialize(f::File, vec)
+    counter = 0
+    while (line = read_csv_line!(f)) != nothing
+        push!(vec, materialize_line(f, line))
+        counter += 1
+    end
+    f.current_line.v = counter
+    nothing
+end
+
+function materialize(f::File)
+    materialize(f, result_collection(f))
+end
 
 """
     csvread(input::IO, delim=','; <arguments>...)
@@ -148,18 +230,10 @@ Read CSV from `file`. Returns a tuple of 2 elements:
 """
 function csvread(input::Union{IO,AbstractString}, delim::Char=DEFAULT_DELIM; lazy=true, eager_parse_fields=true, kw...)
     input_io = read_mmap_data(input)
-    counter = 0
-    
-    buff = Vector{UInt8}()
-    resize!(buff, DEFAULT_LINE_LEN)
-    
-    fields = BufferedVector{WeakRefString{UInt8}}()
-    resize!(fields, DEFAULT_NUM_FIELDS)
 
-    while (line = read_csv_line!(input_io, UInt8(delim), fields, buff, eager_parse_fields)) != nothing
-        counter += 1
-    end
-    counter
+    file = File(input_io, delim, eager_parse_fields)
+    
+    lazy ? file : materialize(file)
 end
 
 

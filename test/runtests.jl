@@ -36,7 +36,12 @@ end
 
 
 function use_lazycsv_jl(filename, eager_parse_fields)
-	LazyCSV.csvread(filename, '|'; header_exists=false, eager_parse_fields=eager_parse_fields)
+	csv_file = LazyCSV.csvread(filename, '|'; header_exists=false, eager_parse_fields=eager_parse_fields)
+	counter = 0
+	for line in csv_file
+		counter += 1
+	end
+	counter
 end
 
 filename = abspath(joinpath(dirname(@__FILE__), "..", "lineitem.tbl"))
