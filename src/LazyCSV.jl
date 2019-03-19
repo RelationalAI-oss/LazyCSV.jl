@@ -92,6 +92,7 @@ function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8,
     end
     
     if num_bytes_read > ZERO
+        # handle the last field if anything is read at all
         if eager_parse_fields
             ########## START ADD FIELD LOGIC (copied above) #######
             num_fields_read += ONE
@@ -103,11 +104,14 @@ function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8,
             @inbounds fields_buff[num_fields_read] = WeakRefString{UInt8}(buff_ptr+prev_field_index,
                                                                           num_bytes_read-prev_field_index-ONE)
             ########## FINISH ADD FIELD LOGIC #####################
+            # correctly set the number of fields read to `num_fields_read`
             fields.size = num_fields_read
         end
         WeakRefString{UInt8}(buff_ptr, num_bytes_read)
     else
+        # if fields were supposed to be parsed eagerly, then correctly set the size of buffer to zero
         eager_parse_fields && (fields.size = ZERO)
+        # if nothing is read, then return `nothing`
         nothing
     end
 end
@@ -140,5 +144,6 @@ function csvread(input::Union{IO,AbstractString}, delim::Char=DEFAULT_DELIM; laz
     lazy ? file : materialize(file)
 end
 
+export csvread
 
 end # module
