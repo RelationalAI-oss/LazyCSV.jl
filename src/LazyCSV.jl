@@ -5,98 +5,85 @@ import Parsers
 import WeakRefStrings: WeakRefString
 
 const CSV = LazyCSV
-const DEFAULT_DELIM = ','
-const DEFAULT_LINE_LEN = 2048
-const DEFAULT_NUM_FIELDS = 16
 
-function consumeBOM!(io)
-    # BOM character detection
-    startpos = position(io)
-    if !eof(io) && Parsers.peekbyte(io) == 0xef
-        Parsers.readbyte(io)
-        (!eof(io) && Parsers.readbyte(io) == 0xbb) || Parsers.fastseek!(io, startpos)
-        (!eof(io) && Parsers.readbyte(io) == 0xbf) || Parsers.fastseek!(io, startpos)
-    end
-    return
-end
-
-function read_input_data(input_source::AbstractString; kwargs...)
-    #TODO this should be done async
-    open(input_source, "r")
-end
-read_input_data(input::IOStream; kwargs...) = input
-
-apply_mmap(input) = Mmap.mmap(input)
-
-function read_mmap_data(input_source::Union{AbstractString,IOStream}; kwargs...)
-    input = read_input_data(input_source; kwargs...)
-    input_io = IOBuffer(apply_mmap(input))
-    consumeBOM!(input_io)
-    input_io
-end
-
-function read_mmap_data(input::IO; kwargs...)
-    consumeBOM!(input)
-    input
-end
-
+include("io.jl")
+include("util.jl")
 const IntTp = UInt64
-
 include("buffered_vector.jl")
-
-@noinline resize_vec!(vec::AbstractVector{T}, new_size) where {T} = resize!(vec, new_size)
-
-const ASCII_ETB = 0x17
-const ASCII_SPACE = UInt8(' ')
-const ASCII_TAB = UInt8('\t')
-const ASCII_RETURN = UInt8('\r')
-const ASCII_NEWLINE = UInt8('\n')
-
-"""
-    ws = *(
-            %x20 /              ; Space
-            %x09 /              ; Horizontal tab
-            %x0A /              ; Line feed or New line
-            %x0D )              ; Carriage return
-"""
-@inline iswhitespace(c) = c == ASCII_SPACE  ||
-                  c == ASCII_TAB ||
-                  c == ASCII_RETURN ||
-                  c == ASCII_NEWLINE
+include("file.jl")
 
 const ZERO_UINT8 = UInt8(0)
 const ZERO = IntTp(0)
 const ONE = IntTp(1)
 
+"""
+    read_csv_line!(f::File, eager_parse_fields::Bool)
+
+reads a single line of input and returns it. Please note that the returned string is a
+`WeakRefString`.
+
+In addition, if `eager_parse_fields` is true, it will also accumulate the fields (as a
+vector of `WeakRefString`) into the `fields_buff` in the file.
+"""
+function read_csv_line!(f::File, eager_parse_fields::Bool=f.eager_parse_fields)
+    read_csv_line!(f.input, f.line_buff, f.delim, f.fields_buff, eager_parse_fields)
+end
+
+function read_csv_line!(s::IO, buff::IOBuffer, delim::UInt8,
+                        fields::BufferedVector{WeakRefString{UInt8}}, eager_parse_fields::Bool)
+    read_csv_line!(s, buff.data, delim, fields, eager_parse_fields)
+end
+
 function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8,
                         fields::BufferedVector{WeakRefString{UInt8}}, eager_parse_fields::Bool)
+    # take the pointer to buffer only once
     buff_ptr::Ptr{UInt8} = pointer(buff)
+    # cache the buffer length
     buff_len::IntTp = IntTp(length(buff))
     
+    # accumulates the number of bytes read for the current line (it won't count the leading whitespaces)
     num_bytes_read::IntTp = ZERO
     
+    # the buffer for storing fields (if `eager_parse_fields` is true)
     fields_buff = fields.buff
+    # cache the length of fields buffer
     fields_len::IntTp = IntTp(length(fields_buff))
+    # accumulates the number of fields read in this line (if `eager_parse_fields` is true)
     num_fields_read::IntTp = ZERO
+    # stores the index of the separator for the previous field.
     prev_field_index::IntTp = ZERO
     
+    # this first while-loop is for bypassing the empty lines or the lines with only whitespaces
     while num_bytes_read == ZERO && !eof(s)
+        # stores the next byte value
+        # it's important that in the UTF-8 format, all non-ASCII characters start with 1-bit
+        # on the leftmost (in all their parts) and it makes it easy to find special characters
+        # (e.g., new-line or ASCII delimiters) using the byte value.
         current_char = ZERO_UINT8
+        
+        # we look for a new-line character or enf-of-file
         while (current_char != ASCII_NEWLINE) && !eof(s)
             current_char = read(s, UInt8)
+            
+            # skip the leading whitespaces
             num_bytes_read == ZERO && iswhitespace(current_char) && continue
+            
             num_bytes_read += ONE
             if eager_parse_fields && current_char == delim
+                ########## START ADD FIELD LOGIC (copied below) #######
                 num_fields_read += ONE
                 if num_fields_read > fields_len
+                    # extend the fields buffer if required
                     fields_len <<= ONE
-                    resize!(fields_buff, fields_len)
+                    resize_vec!(fields_buff, fields_len)
                 end
-                @inbounds fields_buff[num_fields_read] = WeakRefString{UInt8}(buff_ptr+prev_field_index, 
+                @inbounds fields_buff[num_fields_read] = WeakRefString{UInt8}(buff_ptr+prev_field_index,
                                                                               num_bytes_read-prev_field_index-ONE)
+                ########## FINISH ADD FIELD LOGIC #####################
                 prev_field_index = num_bytes_read
             end
             if num_bytes_read > buff_len
+                # extend the line buffer if required
                 buff_len <<= ONE
                 resize_vec!(buff, buff_len)
             end
@@ -106,13 +93,16 @@ function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8,
     
     if num_bytes_read > ZERO
         if eager_parse_fields
+            ########## START ADD FIELD LOGIC (copied above) #######
             num_fields_read += ONE
             if num_fields_read > fields_len
+                # extend the fields buffer if required
                 fields_len <<= ONE
                 resize_vec!(fields_buff, fields_len)
             end
             @inbounds fields_buff[num_fields_read] = WeakRefString{UInt8}(buff_ptr+prev_field_index,
                                                                           num_bytes_read-prev_field_index-ONE)
+            ########## FINISH ADD FIELD LOGIC #####################
             fields.size = num_fields_read
         end
         WeakRefString{UInt8}(buff_ptr, num_bytes_read)
@@ -121,45 +111,6 @@ function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8,
         nothing
     end
 end
-
-mutable struct Counter
-    v::Int
-end
-
-struct File{IO_TYPE}
-    input::IO_TYPE
-    delim::UInt8
-    eager_parse_fields::Bool
-    line_buff::Vector{UInt8}
-    fields_buff::BufferedVector{WeakRefString{UInt8}}
-    current_line::Counter
-    function File(input::IO_TYPE, delim::UInt8,
-                  eager_parse_fields::Bool, line_buff::Vector{UInt8},
-                  fields_buff::BufferedVector{WeakRefString{UInt8}}) where {IO_TYPE}
-        new{IO_TYPE}(input, delim, eager_parse_fields, line_buff, fields_buff, Counter(0))
-    end
-end
-
-function File(input::IO, delim::Char, eager_parse_fields::Bool)
-    buff = Vector{UInt8}()
-    resize!(buff, DEFAULT_LINE_LEN)
-
-    fields = BufferedVector{WeakRefString{UInt8}}()
-    resize!(fields, DEFAULT_NUM_FIELDS)
-
-    File(input, UInt8(delim), eager_parse_fields, buff, fields)
-end
-
-function read_csv_line!(Base.@nospecialize(s::IO), buff::IOBuffer, delim::UInt8,
-                        fields::BufferedVector{WeakRefString{UInt8}}, eager_parse_fields::Bool)
-    read_csv_line!(s, buff.data, delim, fields, eager_parse_fields)
-end
-
-function read_csv_line!(f::File, eager_parse_fields::Bool=f.eager_parse_fields)
-    read_csv_line!(f.input, f.line_buff, f.delim, f.fields_buff, eager_parse_fields)
-end
-
-const DO_NOT_PARSE_LINE_EAGERLY = false
 
 function Base.iterate(f::File, state::Int = 1)
     if f.current_line.v + 1 == state
@@ -170,12 +121,6 @@ function Base.iterate(f::File, state::Int = 1)
             f.current_line.v += 1
             (state+1, state+1)
         end
-    # elseif f.current_line.v < state
-    #     while f.current_line.v + 1 != state
-    #         read_csv_line!(f, DO_NOT_PARSE_LINE_EAGERLY)
-    #         f.current_line.v += 1
-    #     end
-    #     iterate(f, state)
     else
         #TODO: shall we throw an error here?
         # we are expecting the user to always scan sequentially
