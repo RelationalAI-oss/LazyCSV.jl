@@ -13,7 +13,6 @@ function consumeBOM!(io)
     return
 end
 
-const ASCII_ETB = 0x17
 const ASCII_SPACE = UInt8(' ')
 const ASCII_TAB = UInt8('\t')
 const ASCII_RETURN = UInt8('\r')
@@ -27,9 +26,9 @@ const ASCII_NEWLINE = UInt8('\n')
             %x0D )              ; Carriage return
 """
 @inline iswhitespace(c) = c == ASCII_SPACE  ||
-                  c == ASCII_TAB ||
-                  c == ASCII_RETURN ||
-                  c == ASCII_NEWLINE
+                          c == ASCII_TAB ||
+                          c == ASCII_RETURN ||
+                          c == ASCII_NEWLINE
 
 # resize! will be called rarely and it's better not to be inlined to avoid code explosion
 @noinline resize_vec!(vec::AbstractVector{T}, new_size) where {T} = resize!(vec, new_size)
