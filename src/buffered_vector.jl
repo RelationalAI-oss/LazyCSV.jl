@@ -18,3 +18,9 @@ end
 Base.getindex(vec::BufferedVector{T}, key) where {T} = getindex(vec.buff, key)
 Base.length(vec::BufferedVector{T}) where {T} = vec.size
 Base.empty!(vec::BufferedVector{T}) where {T} = (vec.size = 0; nothing)
+
+Base.IndexStyle(::Type{<:BufferedVector}) = IndexLinear()
+Base.IndexStyle(::BufferedVector) = IndexLinear()
+Base.size(vec::BufferedVector) = (vec.size,)
+Base.eltype(vec::BufferedVector{T}) where {T} = T
+Base.eltype(::Type{BufferedVector{T}}) where {T} = T
