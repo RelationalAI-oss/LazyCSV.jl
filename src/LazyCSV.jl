@@ -112,47 +112,6 @@ function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8,
     end
 end
 
-function Base.iterate(f::File, state::Int = 1)
-    if f.current_line.v + 1 == state
-        next_line = read_csv_line!(f)
-        if next_line === nothing
-            nothing
-        else
-            f.current_line.v += 1
-            (state+1, state+1)
-        end
-    else
-        #TODO: shall we throw an error here?
-        # we are expecting the user to always scan sequentially
-        nothing
-    end
-end
-
-result_line_collection(f::File) = Vector{String}()
-result_collection(f::File) = Vector{Vector{String}}()
-
-function materialize_line(f::File, line)
-    line_vec = result_line_collection(f)
-    for field in f.fields_buff
-        push!(line_vec, string(field))
-    end
-    line_vec
-end
-
-function materialize(f::File, vec)
-    counter = 0
-    while (line = read_csv_line!(f)) != nothing
-        push!(vec, materialize_line(f, line))
-        counter += 1
-    end
-    f.current_line.v = counter
-    nothing
-end
-
-function materialize(f::File)
-    materialize(f, result_collection(f))
-end
-
 """
     csvread(input::IO, delim=','; <arguments>...)
 Read CSV from `file`. Returns a tuple of 2 elements:
