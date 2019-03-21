@@ -86,6 +86,7 @@ function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8,
                 # extend the line buffer if required
                 buff_len <<= ONE
                 resize_vec!(buff, buff_len)
+                buff_ptr = pointer(buff) #resizing the buffer might change its location on heap
             end
             @inbounds buff[num_bytes_read] = current_char
         end
