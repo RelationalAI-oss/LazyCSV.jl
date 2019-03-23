@@ -97,4 +97,39 @@ function count_fields(csv_file::File)
 	counter
 end
 
-export num_fields_for_current_line, count_lines, count_fields
+function csv_string(buff::IOBuffer, csv_file::File)
+	for line in csv_file
+		i = 1
+		for field in csv_file.fields_buff
+			quotechar = Char(csv_file.quotechar)
+			escapechar = Char(csv_file.escapechar)
+			delim = Char(csv_file.delim)
+			has_delim = occursin(delim, field)
+			has_quote = occursin(quotechar, field)
+			if has_delim || has_quote
+				if has_quote
+					field_escape_quotes = replace(field, quotechar => "$escapechar$quotechar")
+					write(buff, "$quotechar$field_escape_quotes$quotechar")
+				else
+					write(buff, "$quotechar$field$quotechar")
+				end
+			else
+				write(buff, field)
+			end
+			if i < length(csv_file.fields_buff)
+				write(buff, csv_file.delim)
+			end
+			i += 1
+		end
+		write(buff, "\n")
+	end
+end
+
+function csv_string(csv_file::File)
+	buff = IOBuffer()
+	csv_string(buff, csv_file)
+	seekstart(buff)
+	read(buff, String)
+end
+
+export num_fields_for_current_line, count_lines, count_fields, csv_string
