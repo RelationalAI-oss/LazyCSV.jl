@@ -20,7 +20,13 @@ function read_mmap_data(input_source::Union{AbstractString,IOStream}; kwargs...)
     input_io
 end
 
-function read_mmap_data(input::IO; kwargs...)
+function read_mmap_data(input::IOBuffer; kwargs...)
     consumeBOM!(input)
     input
+end
+
+function read_mmap_data(input::IO; kwargs...)
+    buff_io = Parsers.BufferedIO(input)
+    consumeBOM!(buff_io)
+    buff_io
 end
