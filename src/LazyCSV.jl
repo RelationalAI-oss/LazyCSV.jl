@@ -70,7 +70,7 @@ function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8, quotechar::UIn
         # we look for a new-line character or enf-of-file
         while (current_char != ASCII_NEWLINE) && !eof(s)
             prev_char::UInt8 = current_char
-            current_char = read(s, UInt8)
+            current_char = Parsers.readbyte(s)
             
             # skip the leading whitespaces if not inside a quote
             num_bytes_read == ZERO && !inside_quote && iswhitespace(current_char) && continue
