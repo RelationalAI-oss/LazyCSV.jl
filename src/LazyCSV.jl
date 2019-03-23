@@ -26,15 +26,15 @@ In addition, if `eager_parse_fields` is true, it will also accumulate the fields
 vector of `WeakRefString`) into the `fields_buff` in the file.
 """
 function read_csv_line!(f::File, eager_parse_fields::Bool=f.eager_parse_fields)
-    read_csv_line!(f.input, f.line_buff, f.delim, f.fields_buff, eager_parse_fields)
+    read_csv_line!(f.input, f.line_buff, f.delim, f.quotechar, f.escapechar, f.fields_buff, eager_parse_fields)
 end
 
-function read_csv_line!(s::IO, buff::IOBuffer, delim::UInt8,
+function read_csv_line!(s::IO, buff::IOBuffer, delim::UInt8, quotechar::UInt8, escapechar::UInt8,
                         fields::BufferedVector{WeakRefString{UInt8}}, eager_parse_fields::Bool)
-    read_csv_line!(s, buff.data, delim, fields, eager_parse_fields)
+    read_csv_line!(s, buff.data, delim, quotechar, escapechar, fields, eager_parse_fields)
 end
 
-function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8,
+function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8, quotechar::UInt8, escapechar::UInt8,
                         fields::BufferedVector{WeakRefString{UInt8}}, eager_parse_fields::Bool)
     # take the pointer to buffer only once
     buff_ptr::Ptr{UInt8} = pointer(buff)
@@ -52,6 +52,8 @@ function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8,
     num_fields_read::IntTp = ZERO
     # stores the index of the separator for the previous field.
     prev_field_index::IntTp = ZERO
+
+    inside_quote::Bool = false
     
     # this first while-loop is for bypassing the empty lines or the lines with only whitespaces
     while num_bytes_read == ZERO && !eof(s)
@@ -59,17 +61,28 @@ function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8,
         # it's important that in the UTF-8 format, all non-ASCII characters start with 1-bit
         # on the leftmost (in all their parts) and it makes it easy to find special characters
         # (e.g., new-line or ASCII delimiters) using the byte value.
-        current_char = ZERO_UINT8
+        current_char::UInt8 = ZERO_UINT8
         
         # we look for a new-line character or enf-of-file
         while (current_char != ASCII_NEWLINE) && !eof(s)
+            prev_char::UInt8 = current_char
             current_char = read(s, UInt8)
             
             # skip the leading whitespaces
-            num_bytes_read == ZERO && iswhitespace(current_char) && continue
+            num_bytes_read == ZERO && !inside_quote && iswhitespace(current_char) && continue
+            
+            if current_char == quotechar
+                if inside_quote
+                    inside_quote = false
+                    continue
+                else
+                    inside_quote = true
+                    prev_char != quotechar && continue
+                end
+            end
             
             num_bytes_read += ONE
-            if eager_parse_fields && current_char == delim
+            if eager_parse_fields && !inside_quote && current_char == delim
                 ########## START ADD FIELD LOGIC (copied below) #######
                 num_fields_read += ONE
                 if num_fields_read > fields_len
@@ -82,6 +95,7 @@ function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8,
                 ########## FINISH ADD FIELD LOGIC #####################
                 prev_field_index = num_bytes_read
             end
+            
             if num_bytes_read > buff_len
                 # extend the line buffer if required
                 buff_len <<= ONE
@@ -137,10 +151,14 @@ Read CSV from `file`. Returns a tuple of 2 elements:
 - `colparsers`: Parsers to use for specified columns. This can be a vector or a dictionary from column name / column index (Int) to a "parser". The simplest parser is a type such as Int, Float64. It can also be a `dateformat"..."`, see [CustomParser](@ref) if you want to plug in custom parsing behavior
 - `type_detect_rows`: number of rows to use to infer the initial `colparsers` defaults to 20.
 """
-function csvread(input::Union{IO,AbstractString}, delim::Char=DEFAULT_DELIM; lazy=true, eager_parse_fields=true, kw...)
+function csvread(input::Union{IO,AbstractString}, delim::Char=DEFAULT_DELIM;
+                 lazy=true, eager_parse_fields=DEFAULT_EAGER_PARSE_FIELDS,
+                 quotechar::Char=DEFAULT_QUOTE, escapechar::Char=quotechar, kw...)
     input_io = read_mmap_data(input)
 
-    file = File(input_io, delim, eager_parse_fields)
+    file = File(input_io, delim; eager_parse_fields=eager_parse_fields,
+                quotechar=quotechar, escapechar=escapechar,
+                line_buff_len=DEFAULT_LINE_LEN, fields_buff_len=DEFAULT_NUM_FIELDS)
     
     lazy ? file : materialize(file)
 end

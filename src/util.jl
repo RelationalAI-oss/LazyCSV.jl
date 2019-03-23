@@ -1,7 +1,3 @@
-const DEFAULT_DELIM = ','
-const DEFAULT_LINE_LEN = 2048
-const DEFAULT_NUM_FIELDS = 16
-
 function consumeBOM!(io)
     # BOM character detection
     startpos = position(io)
