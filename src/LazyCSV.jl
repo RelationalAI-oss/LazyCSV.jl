@@ -177,12 +177,26 @@ Read CSV from `file`. Returns a tuple of 2 elements:
 - `colparsers`: Parsers to use for specified columns. This can be a vector or a dictionary from column name / column index (Int) to a "parser". The simplest parser is a type such as Int, Float64. It can also be a `dateformat"..."`, see [CustomParser](@ref) if you want to plug in custom parsing behavior
 - `type_detect_rows`: number of rows to use to infer the initial `colparsers` defaults to 20.
 """
-function csvread(input::Union{IO,AbstractString}, delim::Char=DEFAULT_DELIM;
+function csvread(input::Union{IO,AbstractString}; delim::Union{Char, Nothing}=nothing,
                  lazy=true, eager_parse_fields=DEFAULT_EAGER_PARSE_FIELDS,
                  quotechar::Char=DEFAULT_QUOTE, escapechar::Char=quotechar, kw...)
     input_io = read_mmap_data(input)
 
-    file = File(input_io, delim; eager_parse_fields=eager_parse_fields,
+    if delim === nothing
+        if isa(input, AbstractString)
+            if endswith(input, ".tsv")
+                delim = '\t'
+            elseif endswith(input, ".wsv")
+                delim = ' '
+            else
+                delim = ','
+            end
+        else
+            delim = ','
+        end
+    end
+
+    file = File(input_io; delim=delim, eager_parse_fields=eager_parse_fields,
                 quotechar=quotechar, escapechar=escapechar,
                 line_buff_len=DEFAULT_LINE_LEN, fields_buff_len=DEFAULT_NUM_FIELDS)
     

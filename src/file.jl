@@ -24,7 +24,7 @@ struct File{IO_TYPE}
     end
 end
 
-function File(input::IO, delim::Char; eager_parse_fields::Bool=DEFAULT_EAGER_PARSE_FIELDS,
+function File(input::IO; delim::Char=DEFAULT_DELIM, eager_parse_fields::Bool=DEFAULT_EAGER_PARSE_FIELDS,
 			  line_buff_len::Int=DEFAULT_LINE_LEN, fields_buff_len::Int=DEFAULT_NUM_FIELDS,
 			  quotechar::Char=DEFAULT_QUOTE, escapechar::Char=quotechar)
     buff = Vector{UInt8}()

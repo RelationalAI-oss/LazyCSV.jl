@@ -21,13 +21,13 @@ function csv_count_lines(csv; header_exists=false)
 	count_lines(csv_file)
 end
 
-function csv_count_fields(csv, delim=','; header_exists=false, quotechar=LazyCSV.DEFAULT_QUOTE, escapechar=quotechar)
-	csv_file = LazyCSV.csvread(csv, delim; header_exists=header_exists, eager_parse_fields=true, quotechar=quotechar, escapechar=escapechar)
+function csv_count_fields(csv; delim=',', header_exists=false, quotechar=LazyCSV.DEFAULT_QUOTE, escapechar=quotechar)
+	csv_file = LazyCSV.csvread(csv; delim=delim, header_exists=header_exists, eager_parse_fields=true, quotechar=quotechar, escapechar=escapechar)
 	count_fields(csv_file)
 end
 
-function csv_string(csv, delim=','; header_exists=false, quotechar=LazyCSV.DEFAULT_QUOTE, escapechar=quotechar)
-	csv_file = LazyCSV.csvread(csv, delim; header_exists=header_exists, eager_parse_fields=true, quotechar=quotechar, escapechar=escapechar)
+function csv_string(csv; delim=',', header_exists=false, quotechar=LazyCSV.DEFAULT_QUOTE, escapechar=quotechar)
+	csv_file = LazyCSV.csvread(csv; delim=delim, header_exists=header_exists, eager_parse_fields=true, quotechar=quotechar, escapechar=escapechar)
 	LazyCSV.csv_string(csv_file)
 end
 
@@ -71,8 +71,8 @@ end
 	"""
 
 	@test csv_count_lines(csv_io(lineitem_sample)) == 10
-	@test csv_count_fields(csv_io(lineitem_sample), '|') == 160
-	csv_equals(lineitem_sample, csv_string(csv_io(lineitem_sample), '|'))
+	@test csv_count_fields(csv_io(lineitem_sample); delim='|') == 160
+	csv_equals(lineitem_sample, csv_string(csv_io(lineitem_sample); delim='|'))
 
 	quoted_csv = """
 	John,Doe,120 jefferson st.,Riverside, NJ, 08075
@@ -85,8 +85,8 @@ end
 	"""
 
 	@test csv_count_lines(csv_io(quoted_csv)) == 7
-	@test csv_count_fields(csv_io(quoted_csv), ',') == 42
-	csv_equals(quoted_csv, csv_string(csv_io(quoted_csv), ','))
+	@test csv_count_fields(csv_io(quoted_csv); delim=',') == 42
+	csv_equals(quoted_csv, csv_string(csv_io(quoted_csv); delim=','))
 
 	quoted_csv = """
 	John,Doe,120 jefferson st.,Riverside, NJ, 08075
@@ -99,8 +99,8 @@ end
 	"""
 
 	@test csv_count_lines(csv_io(quoted_csv)) == 7
-	@test csv_count_fields(csv_io(quoted_csv), ','; escapechar='%') == 42
-	csv_equals(quoted_csv, csv_string(csv_io(quoted_csv), ','; escapechar='%'))
+	@test csv_count_fields(csv_io(quoted_csv); delim=',', escapechar='%') == 42
+	csv_equals(quoted_csv, csv_string(csv_io(quoted_csv); delim=',', escapechar='%'))
 end
 
 function use_csv_jl(filename)
@@ -134,7 +134,7 @@ end
 
 
 function use_lazycsv_jl(filename, eager_parse_fields)
-	csv_file = LazyCSV.csvread(filename, '|'; header_exists=false, eager_parse_fields=eager_parse_fields)
+	csv_file = LazyCSV.csvread(filename; delim='|', header_exists=false, eager_parse_fields=eager_parse_fields)
 	counter = 0
 	for line in csv_file
 		counter += 1
