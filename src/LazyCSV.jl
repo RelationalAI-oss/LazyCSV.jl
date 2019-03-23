@@ -68,7 +68,7 @@ function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8, quotechar::UIn
         current_char::UInt8 = ZERO_UINT8
         
         # we look for a new-line character or enf-of-file
-        while (current_char != ASCII_NEWLINE) && !eof(s)
+        while (current_char != ASCII_NEWLINE && current_char != ASCII_RETURN) && !eof(s)
             prev_char::UInt8 = current_char
             current_char = Parsers.readbyte(s)
             

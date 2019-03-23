@@ -73,7 +73,7 @@ function simple_csv_test(csv_str, num_lines, num_fields; delim=',', quotechar='"
 	@test computed_num_lines == num_lines || error("$computed_num_lines != $num_lines in \n----------------\n$csv_str\n----------------")
 	computed_num_fields = csv_count_fields(csv_io(csv_str); delim=delim, quotechar=quotechar, escapechar=escapechar)
 	@test computed_num_fields == num_fields || error("$computed_num_fields != $num_fields in \n----------------\n$csv_str\n----------------")
-	csv_equals(csv_str, csv_string(csv_io(csv_str); delim=delim, quotechar=quotechar, escapechar=escapechar); delim=delim)
+	csv_equals(replace(csv_str, "\r" => "\r\n"), csv_string(csv_io(csv_str); delim=delim, quotechar=quotechar, escapechar=escapechar); delim=delim)
 end
 
 @testset "LazyCSV tests" begin
