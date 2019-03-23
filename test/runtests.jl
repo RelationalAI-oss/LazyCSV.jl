@@ -65,6 +65,12 @@ function csv_line_equals(base_line, toaa_line; delim=',')
 	end
 end
 
+function simple_csv_test(csv_str, num_lines, num_fields; delim=',', quotechar='"', escapechar=quotechar)
+	@test csv_count_lines(csv_io(csv_str)) == num_lines
+	@test csv_count_fields(csv_io(csv_str); delim=delim, quotechar=quotechar, escapechar=escapechar) == num_fields
+	csv_equals(csv_str, csv_string(csv_io(csv_str); delim=delim, quotechar=quotechar, escapechar=escapechar); delim=delim)
+end
+
 @testset "Untyped Tests" begin
 	lineitem_sample = """
 	1|155190|7706|1|17|21168.23|0.04|0.02|N|O|1996-03-13|1996-02-12|1996-03-22|DELIVER IN PERSON|TRUCK|egular courts above the
@@ -79,11 +85,9 @@ end
 	3|128449|3474|3|27|39890.88|0.06|0.07|A|F|1994-01-16|1993-11-22|1994-01-23|DELIVER IN PERSON|SHIP|nal foxes wake. 
 	"""
 
-	@test csv_count_lines(csv_io(lineitem_sample)) == 10
-	@test csv_count_fields(csv_io(lineitem_sample); delim='|') == 160
-	csv_equals(lineitem_sample, csv_string(csv_io(lineitem_sample); delim='|'); delim='|')
+	simple_csv_test(lineitem_sample, 10, 160; delim='|')
 
-	quoted_csv = """
+	quoted_csv1 = """
 	John,Doe,120 jefferson st.,Riverside, NJ, 08075
 	Jack,McGinnis,220 hobo Av.,Phila, PA,09119
 	"John ""Da Man""\",Repici,120 Jefferson St.,Riverside, NJ,08075
@@ -93,11 +97,9 @@ end
 	"Joan ""\""the bone"", Anne",Jet,"9th, at Terrace plc",Desert City,CO,00123
 	"""
 
-	@test csv_count_lines(csv_io(quoted_csv)) == 7
-	@test csv_count_fields(csv_io(quoted_csv); delim=',') == 42
-	csv_equals(quoted_csv, csv_string(csv_io(quoted_csv)))
+	simple_csv_test(quoted_csv1, 7, 42)
 
-	quoted_csv = """
+	quoted_csv2 = """
 	John,Doe,120 jefferson st.,Riverside, NJ, 08075
 	Jack,McGinnis,220 hobo Av.,Phila, PA,09119
 	"John %"Da Man%"",Repici,120 Jefferson St.,Riverside, NJ,08075
@@ -107,9 +109,7 @@ end
 	"Joan %"%"the bone%", Anne",Jet,"9th, at Terrace plc",Desert City,CO,00123
 	"""
 
-	@test csv_count_lines(csv_io(quoted_csv)) == 7
-	@test csv_count_fields(csv_io(quoted_csv); delim=',', escapechar='%') == 42
-	csv_equals(quoted_csv, csv_string(csv_io(quoted_csv); escapechar='%'))
+	simple_csv_test(quoted_csv2, 7, 42; escapechar='%')
 	
 	airtravel_csv = """
 	"Month", "1958", "1959", "1960"
@@ -127,9 +127,7 @@ end
 	"DEC",  337,  405,  432
 	"""
 	
-	@test csv_count_lines(csv_io(airtravel_csv)) == 13
-	@test csv_count_fields(csv_io(airtravel_csv)) == 52
-	csv_equals(airtravel_csv, csv_string(csv_io(airtravel_csv)))
+	simple_csv_test(airtravel_csv, 13, 52)
 end
 
 function use_csv_jl(filename)
