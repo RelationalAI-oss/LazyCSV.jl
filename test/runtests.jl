@@ -31,26 +31,35 @@ function csv_string(csv; delim=',', header_exists=false, quotechar=LazyCSV.DEFAU
 	LazyCSV.csv_string(csv_file)
 end
 
-function csv_equals(base_csv, to_csv)
+function csv_equals(base_csv, to_csv; delim=',')
 	base_csv_io = csv_io(base_csv)
 	to_csv_io = csv_io(to_csv)
 	for (base_line, to_line) in zip(eachline(base_csv_io), eachline(to_csv_io))
-		@test csv_line_equals(base_line, to_line) || error("$base_line != $to_line")
+		@test csv_line_equals(base_line, to_line; delim=delim) || error("$base_line != $to_line")
 	end
 end
 
-function strip_csv_line(line)
-	line = replace(line, r"^\"" => "")
-	line = replace(line, r"\"\$" => "")
-	line = replace(line, ",\"" => ",")
-	line = replace(line, "\"," => ",")
+isspecial_in_regex(delim) = delim == '|'
+
+function strip_csv_line(line, delim)
+	escaped_delim = if isspecial_in_regex(delim)
+		"\\$delim"
+	else
+		"$delim"
+	end
+
+	line = replace(line, r"^\s*\"" => "")
+	line = replace(line, r"\"\s*$" => "")
+	line = replace(line, Regex("$(escaped_delim)\\s*\\\"") => delim)
+	line = replace(line, Regex("\\\"\\s*$(escaped_delim)") => delim)
+	line = replace(line, Regex("\\s*$(escaped_delim)\\s*") => delim)
 	line = replace(line, "\"\"" => "\"")
 	line
 end
 
-function csv_line_equals(base_line, toaa_line)
+function csv_line_equals(base_line, toaa_line; delim=',')
 	if base_line != toaa_line
-		strip_csv_line(base_line) == strip_csv_line(toaa_line)
+		strip_csv_line(base_line, delim) == strip_csv_line(toaa_line, delim)
 	else
 		true
 	end
@@ -72,7 +81,7 @@ end
 
 	@test csv_count_lines(csv_io(lineitem_sample)) == 10
 	@test csv_count_fields(csv_io(lineitem_sample); delim='|') == 160
-	csv_equals(lineitem_sample, csv_string(csv_io(lineitem_sample); delim='|'))
+	csv_equals(lineitem_sample, csv_string(csv_io(lineitem_sample); delim='|'); delim='|')
 
 	quoted_csv = """
 	John,Doe,120 jefferson st.,Riverside, NJ, 08075
@@ -86,7 +95,7 @@ end
 
 	@test csv_count_lines(csv_io(quoted_csv)) == 7
 	@test csv_count_fields(csv_io(quoted_csv); delim=',') == 42
-	csv_equals(quoted_csv, csv_string(csv_io(quoted_csv); delim=','))
+	csv_equals(quoted_csv, csv_string(csv_io(quoted_csv)))
 
 	quoted_csv = """
 	John,Doe,120 jefferson st.,Riverside, NJ, 08075
@@ -100,7 +109,27 @@ end
 
 	@test csv_count_lines(csv_io(quoted_csv)) == 7
 	@test csv_count_fields(csv_io(quoted_csv); delim=',', escapechar='%') == 42
-	csv_equals(quoted_csv, csv_string(csv_io(quoted_csv); delim=',', escapechar='%'))
+	csv_equals(quoted_csv, csv_string(csv_io(quoted_csv); escapechar='%'))
+	
+	airtravel_csv = """
+	"Month", "1958", "1959", "1960"
+	"JAN",  340,  360,  417
+	"FEB",  318,  342,  391
+	"MAR",  362,  406,  419
+	"APR",  348,  396,  461
+	"MAY",  363,  420,  472
+	"JUN",  435,  472,  535
+	"JUL",  491,  548,  622
+	"AUG",  505,  559,  606
+	"SEP",  404,  463,  508
+	"OCT",  359,  407,  461
+	"NOV",  310,  362,  390
+	"DEC",  337,  405,  432
+	"""
+	
+	@test csv_count_lines(csv_io(airtravel_csv)) == 13
+	@test csv_count_fields(csv_io(airtravel_csv)) == 52
+	csv_equals(airtravel_csv, csv_string(csv_io(airtravel_csv)))
 end
 
 function use_csv_jl(filename)
