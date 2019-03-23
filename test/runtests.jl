@@ -6,6 +6,7 @@ using Mmap
 using TextParse
 
 DO_BENCHMARK = false
+DEBUG_ISSUE = false
 
 # creates a IO instance using the given CSV string
 function csv_io(csv::AbstractString)
@@ -35,7 +36,7 @@ function csv_equals(base_csv, to_csv; delim=',')
 	base_csv_io = csv_io(base_csv)
 	to_csv_io = csv_io(to_csv)
 	for (base_line, to_line) in zip(eachline(base_csv_io), eachline(to_csv_io))
-		@test csv_line_equals(base_line, to_line; delim=delim) || error("$base_line != $to_line")
+		@test csv_line_equals(base_line, to_line; delim=delim) || error("$(strip_csv_line(base_line, delim)) != $(strip_csv_line(to_line, delim))")
 	end
 end
 
@@ -49,7 +50,9 @@ function strip_csv_line(line, delim)
 	end
 
 	line = replace(line, r"^\s*\"" => "")
+	line = replace(line, r"^\s*" => "")
 	line = replace(line, r"\"\s*$" => "")
+	line = replace(line, r"\s*$" => "")
 	line = replace(line, Regex("$(escaped_delim)\\s*\\\"") => delim)
 	line = replace(line, Regex("\\\"\\s*$(escaped_delim)") => delim)
 	line = replace(line, Regex("\\s*$(escaped_delim)\\s*") => delim)
@@ -66,11 +69,14 @@ function csv_line_equals(base_line, toaa_line; delim=',')
 end
 
 function simple_csv_test(csv_str, num_lines, num_fields; delim=',', quotechar='"', escapechar=quotechar)
-	@test csv_count_lines(csv_io(csv_str)) == num_lines
-	@test csv_count_fields(csv_io(csv_str); delim=delim, quotechar=quotechar, escapechar=escapechar) == num_fields
+	computed_num_lines = csv_count_lines(csv_io(csv_str))
+	@test computed_num_lines == num_lines || error("$computed_num_lines != $num_lines in \n----------------\n$csv_str\n----------------")
+	computed_num_fields = csv_count_fields(csv_io(csv_str); delim=delim, quotechar=quotechar, escapechar=escapechar)
+	@test computed_num_fields == num_fields || error("$computed_num_fields != $num_fields in \n----------------\n$csv_str\n----------------")
 	csv_equals(csv_str, csv_string(csv_io(csv_str); delim=delim, quotechar=quotechar, escapechar=escapechar); delim=delim)
 end
 
+@testset "LazyCSV tests" begin
 @testset "Untyped Tests" begin
 	lineitem_sample = """
 	1|155190|7706|1|17|21168.23|0.04|0.02|N|O|1996-03-13|1996-02-12|1996-03-22|DELIVER IN PERSON|TRUCK|egular courts above the
@@ -128,6 +134,49 @@ end
 	"""
 	
 	simple_csv_test(airtravel_csv, 13, 52)
+	
+	biostats_csv = """
+	"Name",     "Sex", "Age", "Height (in)", "Weight (lbs)"
+	"Alex",       "M",   41,       74,      170
+	"Bert",       "M",   42,       68,      166
+	"Carl",       "M",   32,       70,      155
+	"Dave",       "M",   39,       72,      167
+	"Elly",       "F",   30,       66,      124
+	"Fran",       "F",   33,       66,      115
+	"Gwen",       "F",   26,       64,      121
+	"Hank",       "M",   30,       71,      158
+	"Ivan",       "M",   53,       72,      175
+	"Jake",       "M",   32,       69,      143
+	"Kate",       "F",   47,       69,      139
+	"Luke",       "M",   34,       72,      163
+	"Myra",       "F",   23,       62,       98
+	"Neil",       "M",   36,       75,      160
+	"Omar",       "M",   38,       70,      145
+	"Page",       "F",   31,       67,      135
+	"Quin",       "M",   29,       71,      176
+	"Ruth",       "F",   28,       65,      131
+	"""
+	
+	simple_csv_test(biostats_csv, 19, 95)
+end
+
+additional_fields = Dict("taxables.csv" => 4, "deniro.csv" => 3, "oscar_age_male.csv" => 2,
+                         "oscar_age_female.csv" => 2, "freshman_lbs.csv" => 2)
+
+@testset "Untyped File Tests" begin
+	csv_dir = abspath(joinpath(dirname(@__FILE__), "sample_csv"))
+	for csv_file in readdir(csv_dir)
+		endswith(csv_file, ".csv") || continue
+		DEBUG_ISSUE && println("$csv_file:")
+		csv_file_path = joinpath(csv_dir, csv_file)
+		csv_file_io = open(csv_file_path, "r")
+		csv_file_str = read(csv_file_io, String)
+		line_count = count(x -> x == '\n' || x == '\r', csv_file_str)
+		delim_count = count(x -> x == ',', csv_file_str)
+		field_count = delim_count + line_count
+		simple_csv_test(csv_file_str, line_count, field_count-get(additional_fields, csv_file, 0))
+	end
+end
 end
 
 function use_csv_jl(filename)
