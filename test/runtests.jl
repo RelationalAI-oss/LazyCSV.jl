@@ -23,12 +23,14 @@ function csv_count_lines(csv; header_exists=false)
 end
 
 function csv_count_fields(csv; delim=',', header_exists=false, quotechar=LazyCSV.DEFAULT_QUOTE, escapechar=quotechar)
-	csv_file = LazyCSV.csvread(csv; delim=delim, header_exists=header_exists, eager_parse_fields=true, quotechar=quotechar, escapechar=escapechar)
+	csv_file = LazyCSV.csvread(csv; delim=delim, header_exists=header_exists, 
+	                           eager_parse_fields=true, quotechar=quotechar, escapechar=escapechar)
 	count_fields(csv_file)
 end
 
 function csv_string(csv; delim=',', header_exists=false, quotechar=LazyCSV.DEFAULT_QUOTE, escapechar=quotechar)
-	csv_file = LazyCSV.csvread(csv; delim=delim, header_exists=header_exists, eager_parse_fields=true, quotechar=quotechar, escapechar=escapechar)
+	csv_file = LazyCSV.csvread(csv; delim=delim, header_exists=header_exists,
+	                           eager_parse_fields=true, quotechar=quotechar, escapechar=escapechar)
 	LazyCSV.csv_string(csv_file)
 end
 
@@ -36,7 +38,8 @@ function csv_equals(base_csv, to_csv; delim=',')
 	base_csv_io = csv_io(base_csv)
 	to_csv_io = csv_io(to_csv)
 	for (base_line, to_line) in zip(eachline(base_csv_io), eachline(to_csv_io))
-		@test csv_line_equals(base_line, to_line; delim=delim) || error("$(strip_csv_line(base_line, delim)) != $(strip_csv_line(to_line, delim))")
+		@test csv_line_equals(base_line, to_line; delim=delim) || 
+			error("$(strip_csv_line(base_line, delim)) != $(strip_csv_line(to_line, delim))")
 	end
 end
 
@@ -73,7 +76,8 @@ function simple_csv_test(csv_str, num_lines, num_fields; delim=',', quotechar='"
 	@test computed_num_lines == num_lines || error("$computed_num_lines != $num_lines in \n----------------\n$csv_str\n----------------")
 	computed_num_fields = csv_count_fields(csv_io(csv_str); delim=delim, quotechar=quotechar, escapechar=escapechar)
 	@test computed_num_fields == num_fields || error("$computed_num_fields != $num_fields in \n----------------\n$csv_str\n----------------")
-	csv_equals(replace(csv_str, "\r" => "\r\n"), csv_string(csv_io(csv_str); delim=delim, quotechar=quotechar, escapechar=escapechar); delim=delim)
+	csv_equals(replace(csv_str, "\r" => "\r\n"), csv_string(csv_io(csv_str);
+	           delim=delim, quotechar=quotechar, escapechar=escapechar); delim=delim)
 end
 
 @testset "LazyCSV tests" begin
