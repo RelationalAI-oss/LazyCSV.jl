@@ -35,7 +35,7 @@ function csv_equals(base_csv, to_csv)
 	base_csv_io = csv_io(base_csv)
 	to_csv_io = csv_io(to_csv)
 	for (base_line, to_line) in zip(eachline(base_csv_io), eachline(to_csv_io))
-		@test csv_line_equals(base_line, to_line)
+		@test csv_line_equals(base_line, to_line) || error("$base_line != $to_line")
 	end
 end
 
