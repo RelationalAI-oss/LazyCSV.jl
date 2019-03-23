@@ -66,3 +66,25 @@ end
 function materialize(f::File)
     materialize(f, result_collection(f))
 end
+
+function num_fields_for_current_line(f::File)
+    length(f.fields_buff)
+end
+
+function count_lines(csv_file::File)
+	counter = UInt(0)
+	for line in csv_file
+		counter += 1
+	end
+	counter
+end
+
+function count_fields(csv_file::File)
+	counter = UInt(0)
+	for line in csv_file
+		counter += num_fields_for_current_line(csv_file)
+	end
+	counter
+end
+
+export num_fields_for_current_line, count_lines, count_fields
