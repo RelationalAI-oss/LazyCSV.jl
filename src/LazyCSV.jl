@@ -53,7 +53,11 @@ function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8, quotechar::UIn
     # stores the index of the separator for the previous field.
     prev_field_index::IntTp = ZERO
 
+    # `inside_quote` determines whether the given fields is quoted and we are scanning inside the quote
+    # this variable is initialized here, as there might be leading whitespaces inside the quote
     inside_quote::Bool = false
+    
+    same_quote_and_escape::Bool = quotechar == escapechar
     
     # this first while-loop is for bypassing the empty lines or the lines with only whitespaces
     while num_bytes_read == ZERO && !eof(s)
@@ -68,19 +72,41 @@ function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8, quotechar::UIn
             prev_char::UInt8 = current_char
             current_char = read(s, UInt8)
             
-            # skip the leading whitespaces
+            # skip the leading whitespaces if not inside a quote
             num_bytes_read == ZERO && !inside_quote && iswhitespace(current_char) && continue
             
-            if current_char == quotechar
-                if inside_quote
-                    inside_quote = false
-                    continue
-                else
-                    inside_quote = true
-                    prev_char != quotechar && continue
+            # handles the quote character
+            # there are two cases:
+            if same_quote_and_escape
+                # case 1: if both quotechar and escapechar are the same
+                if current_char == quotechar
+                    if inside_quote
+                        # if we are already inside a quote, then this is either an end-quote or
+                        # a escape character and we have to escape it anyways
+                        inside_quote = false
+                        continue
+                    else
+                        inside_quote = true
+                        # if we were not in a quote, it could be because of a escape quote
+                        # before this one and the following check does the job. If the prev.
+                        # character was also a `quotechar`, then we have to write the character.
+                        prev_char != quotechar && continue
+                    end
+                end
+            else
+                # case 2: if quotechar and escapechar are different
+                if current_char == quotechar
+                    if prev_char != escapechar
+                        inside_quote = !inside_quote
+                        continue
+                    end
+                elseif current_char == escapechar
+                    if prev_char != escapechar
+                        continue
+                    end
                 end
             end
-            
+
             num_bytes_read += ONE
             if eager_parse_fields && !inside_quote && current_char == delim
                 ########## START ADD FIELD LOGIC (copied below) #######
