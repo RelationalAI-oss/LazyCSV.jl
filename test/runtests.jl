@@ -21,27 +21,14 @@ function csv_count_lines(csv; header_exists=false)
 	count_lines(csv_file)
 end
 
-function csv_count_fields(csv, delim=','; header_exists=false)
-	csv_file = LazyCSV.csvread(csv, delim; header_exists=header_exists, eager_parse_fields=true)
+function csv_count_fields(csv, delim=','; header_exists=false, quotechar=LazyCSV.DEFAULT_QUOTE, escapechar=quotechar)
+	csv_file = LazyCSV.csvread(csv, delim; header_exists=header_exists, eager_parse_fields=true, quotechar=quotechar, escapechar=escapechar)
 	count_fields(csv_file)
 end
 
-function csv_string(csv, delim=','; header_exists=false)
-	csv_file = LazyCSV.csvread(csv, delim; header_exists=header_exists, eager_parse_fields=true)
-	buff = IOBuffer()
-	for line in csv_file
-		i = 1
-		for field in csv_file.fields_buff
-			write(buff, field)
-			if i < length(csv_file.fields_buff)
-				write(buff, delim)
-			end
-			i += 1
-		end
-		write(buff, "\n")
-	end
-	seekstart(buff)
-	read(buff, String)
+function csv_string(csv, delim=','; header_exists=false, quotechar=LazyCSV.DEFAULT_QUOTE, escapechar=quotechar)
+	csv_file = LazyCSV.csvread(csv, delim; header_exists=header_exists, eager_parse_fields=true, quotechar=quotechar, escapechar=escapechar)
+	LazyCSV.csv_string(csv_file)
 end
 
 function csv_equals(base_csv, to_csv)
@@ -52,14 +39,18 @@ function csv_equals(base_csv, to_csv)
 	end
 end
 
+function strip_csv_line(line)
+	line = replace(line, r"^\"" => "")
+	line = replace(line, r"\"\$" => "")
+	line = replace(line, ",\"" => ",")
+	line = replace(line, "\"," => ",")
+	line = replace(line, "\"\"" => "\"")
+	line
+end
+
 function csv_line_equals(base_line, toaa_line)
 	if base_line != toaa_line
-		base_line = replace(base_line, r"^\"" => "")
-		base_line = replace(base_line, r"\"\$" => "")
-		base_line = replace(base_line, ",\"" => ",")
-		base_line = replace(base_line, "\"," => ",")
-		base_line = replace(base_line, "\"\"" => "\"")
-		isequal(base_line, toaa_line)
+		strip_csv_line(base_line) == strip_csv_line(toaa_line)
 	else
 		true
 	end
@@ -78,23 +69,38 @@ end
 	3|19036|6540|2|49|46796.47|0.10|0.00|R|F|1993-11-09|1993-12-20|1993-11-24|TAKE BACK RETURN|RAIL| unusual accounts. eve
 	3|128449|3474|3|27|39890.88|0.06|0.07|A|F|1994-01-16|1993-11-22|1994-01-23|DELIVER IN PERSON|SHIP|nal foxes wake. 
 	"""
-	
+
 	@test csv_count_lines(csv_io(lineitem_sample)) == 10
 	@test csv_count_fields(csv_io(lineitem_sample), '|') == 160
 	csv_equals(lineitem_sample, csv_string(csv_io(lineitem_sample), '|'))
-	
+
 	quoted_csv = """
 	John,Doe,120 jefferson st.,Riverside, NJ, 08075
 	Jack,McGinnis,220 hobo Av.,Phila, PA,09119
 	"John ""Da Man""\",Repici,120 Jefferson St.,Riverside, NJ,08075
 	Stephen,Tyler,"7452 Terrace ""At the Plaza"" road",SomeTown,SD, 91234
 	,Blankman,,SomeTown, SD, 00298
+	,Blankman,"",SomeTown, SD, 00298
 	"Joan ""\""the bone"", Anne",Jet,"9th, at Terrace plc",Desert City,CO,00123
 	"""
-	
-	@test csv_count_lines(csv_io(quoted_csv)) == 6
-	@test csv_count_fields(csv_io(quoted_csv), ',') == 36
+
+	@test csv_count_lines(csv_io(quoted_csv)) == 7
+	@test csv_count_fields(csv_io(quoted_csv), ',') == 42
 	csv_equals(quoted_csv, csv_string(csv_io(quoted_csv), ','))
+
+	quoted_csv = """
+	John,Doe,120 jefferson st.,Riverside, NJ, 08075
+	Jack,McGinnis,220 hobo Av.,Phila, PA,09119
+	"John %"Da Man%"",Repici,120 Jefferson St.,Riverside, NJ,08075
+	Stephen,Tyler,"7452 Terrace %"At the Plaza%" road",SomeTown,SD, 91234
+	,Blankman,,SomeTown, SD, 00298
+	,Blankman,"",SomeTown, SD, 00298
+	"Joan %"%"the bone%", Anne",Jet,"9th, at Terrace plc",Desert City,CO,00123
+	"""
+
+	@test csv_count_lines(csv_io(quoted_csv)) == 7
+	@test csv_count_fields(csv_io(quoted_csv), ','; escapechar='%') == 42
+	csv_equals(quoted_csv, csv_string(csv_io(quoted_csv), ','; escapechar='%'))
 end
 
 function use_csv_jl(filename)
