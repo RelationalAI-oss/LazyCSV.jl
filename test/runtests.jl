@@ -28,10 +28,11 @@ function csv_count_fields(csv; delim=',', header_exists=false, quotechar=LazyCSV
 	count_fields(csv_file)
 end
 
-function csv_string(csv; delim=',', header_exists=false, quotechar=LazyCSV.DEFAULT_QUOTE, escapechar=quotechar)
+function csv_string(csv, num_fields::Int = -1;
+	                delim=',', header_exists=false, quotechar=LazyCSV.DEFAULT_QUOTE, escapechar=quotechar)
 	csv_file = LazyCSV.csvread(csv; delim=delim, header_exists=header_exists,
 	                           eager_parse_fields=true, quotechar=quotechar, escapechar=escapechar)
-	LazyCSV.csv_string(csv_file)
+	LazyCSV.csv_string(csv_file, num_fields)
 end
 
 function csv_equals(base_csv, to_csv; delim=',')
@@ -164,6 +165,19 @@ end
 	"""
 	
 	simple_csv_test(biostats_csv, 19, 95)
+    
+    quoted_csv3 = """
+	John,Doe,120 jefferson st.,Riverside, NJ, 08075
+	Jack,McGinnis,220 hobo Av.,Phila, PA,09119,error1
+	"John ""Da Man""\",Repici,120 Jefferson St.,Riverside, NJ,08075
+	Stephen,Tyler,"7452 Terrace ""At the Plaza"" road",SomeTown,SD, 91234
+	,Blankman,,SomeTown, SD, 00298
+	,Blankman,"",SomeTown, error2
+	"Joan ""\""the bone"", Anne",Jet,"9th, at Terrace plc",Desert City,CO,00123
+	"""
+
+	quoted_csv3_out = csv_string(csv_io(quoted_csv3), 6)
+	@test count(x -> true, eachmatch(r"ERROR", quoted_csv3_out)) == 2
 end
 
 additional_fields = Dict("taxables.csv" => 4, "deniro.csv" => 3, "oscar_age_male.csv" => 2,
