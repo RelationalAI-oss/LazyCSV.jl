@@ -47,7 +47,7 @@ function Base.iterate(f::File, state::Int = 1)
             nothing
         else
             f.current_line.v += 1
-            (state+1, state+1)
+            (next_line, state+1)
         end
     else
         #TODO: shall we throw an error here?
@@ -122,24 +122,4 @@ function csv_field_string(buff::IO, csv_file::File, field, i)
 	end
 end
 
-function csv_string(buff::IO, csv_file::File)
-	print_consumer = PrintConsumer(buff)
-	consume(print_consumer, csv_file)
-	for line in csv_file
-		i = 1
-		for field in csv_file.fields_buff
-			csv_field_string(buff, csv_file, field, i)
-			i += 1
-		end
-		write(buff, "\n")
-	end
-end
-
-function csv_string(csv_file::File)
-	buff = IOBuffer()
-	csv_string(buff, csv_file)
-	seekstart(buff)
-	read(buff, String)
-end
-
-export num_fields_for_current_line, count_lines, count_fields, csv_string
+export num_fields_for_current_line, count_lines, count_fields

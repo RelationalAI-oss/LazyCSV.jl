@@ -77,5 +77,25 @@ function consume(consumer::DataConsumer, f::File)
     end
 end
 
-const IS_OK = true
-const IS_ERROR = !IS_OK
+function csv_string(buff::IO, csv_file::File, consumer::DataConsumer = PrintConsumer(buff))
+	consume(consumer, csv_file)
+	for line in csv_file
+		i = 1
+		for field in csv_file.fields_buff
+			csv_field_string(buff, csv_file, field, i)
+			i += 1
+		end
+		write(buff, "\n")
+	end
+end
+
+function csv_string(csv_file::File, num_fields::Int=-1)
+	buff = IOBuffer()
+	csv_string(buff, csv_file, PrintConsumer(buff, num_fields))
+	seekstart(buff)
+	read(buff, String)
+end
+
+export DataConsumer, PrintConsumer, consume, consume_header, consume_rec, consume_field, consume_error
+export RecordLength, UnknownRecordLength, FixedRecordLength
+export RecordType, UntypedRecord, record_length, csv_string
