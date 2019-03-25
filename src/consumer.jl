@@ -63,8 +63,14 @@ function consume_field(pc::PrintConsumer, f::File, field_str, index::Int)
     index == length(f.fields_buff) && write(pc.out, "\n")
 end
 function consume_error(pc::PrintConsumer, f::File, line_str)
-    write(pc.out, "ERROR>> ")
-    write(pc.out, line_str)
+    write(pc.out, "ERROR >> ")
+	write(pc.out, "$(length(f.fields_buff)) fields:")
+	for (i, field) in enumerate(f.fields_buff)
+		write(pc.out, "\n    $i ->")
+		write(pc.out, field)
+	end
+	write(pc.out, " in \nline: ")
+    write(pc.out, string(line_str))
 end
 
 function consume(consumer::DataConsumer, f::File)
