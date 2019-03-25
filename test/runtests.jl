@@ -45,12 +45,14 @@ end
 
 isspecial_in_regex(delim) = delim == '|'
 
-function strip_csv_line(line, delim)
-	escaped_delim = if isspecial_in_regex(delim)
+escape_char(delim) = if isspecial_in_regex(delim)
 		"\\$delim"
 	else
 		"$delim"
 	end
+
+function strip_csv_line(line, delim)
+	escaped_delim = escape_char(delim)
 
 	line = replace(line, r"^\s*\"" => "")
 	line = replace(line, r"^\s*" => "")
