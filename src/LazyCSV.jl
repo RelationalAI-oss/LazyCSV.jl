@@ -16,6 +16,8 @@ const ZERO_UINT8 = UInt8(0)
 const ZERO = IntTp(0)
 const ONE = IntTp(1)
 
+const DEFAULT_HEADER_EXISTS = false
+
 """
     read_csv_line!(f::File, eager_parse_fields::Bool)
 
@@ -179,7 +181,8 @@ Read CSV from `file`. Returns a tuple of 2 elements:
 """
 function csvread(input::Union{IO,AbstractString}; delim::Union{Char, Nothing}=nothing,
                  lazy=true, eager_parse_fields=DEFAULT_EAGER_PARSE_FIELDS,
-                 quotechar::Char=DEFAULT_QUOTE, escapechar::Char=quotechar, kw...)
+                 quotechar::Char=DEFAULT_QUOTE, escapechar::Char=quotechar,
+                 header_exists::Bool=DEFAULT_HEADER_EXISTS, kw...)
     input_io = read_mmap_data(input)
 
     if delim === nothing
@@ -197,7 +200,7 @@ function csvread(input::Union{IO,AbstractString}; delim::Union{Char, Nothing}=no
     end
 
     file = File(input_io; delim=delim, eager_parse_fields=eager_parse_fields,
-                quotechar=quotechar, escapechar=escapechar,
+                quotechar=quotechar, escapechar=escapechar, header_exists=header_exists,
                 line_buff_len=DEFAULT_LINE_LEN, fields_buff_len=DEFAULT_NUM_FIELDS)
     
     lazy ? file : materialize(file)

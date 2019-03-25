@@ -13,27 +13,31 @@ struct File{IO_TYPE}
     delim::UInt8      # the delimiter should be an ASCII character to fit in a single byte
 	quotechar::UInt8  # the quote character should be an ASCII character to fit in a single byte
 	escapechar::UInt8 # the escape character should be an ASCII character to fit in a single byte
+    header_exists::Bool
     eager_parse_fields::Bool
     line_buff::Vector{UInt8}
     fields_buff::BufferedVector{WeakRefString{UInt8}}
     current_line::Counter
     function File(input::IO_TYPE, delim::UInt8, quotechar::UInt8, escapechar::UInt8,
-                  eager_parse_fields::Bool, line_buff::Vector{UInt8},
+				  header_exists::Bool, eager_parse_fields::Bool, line_buff::Vector{UInt8},
                   fields_buff::BufferedVector{WeakRefString{UInt8}}) where {IO_TYPE}
-        new{IO_TYPE}(input, delim, quotechar, escapechar, eager_parse_fields, line_buff, fields_buff, Counter(0))
+        new{IO_TYPE}(input, delim, quotechar, escapechar, header_exists,
+					 eager_parse_fields, line_buff, fields_buff, Counter(0))
     end
 end
 
 function File(input::IO; delim::Char=DEFAULT_DELIM, eager_parse_fields::Bool=DEFAULT_EAGER_PARSE_FIELDS,
 			  line_buff_len::Int=DEFAULT_LINE_LEN, fields_buff_len::Int=DEFAULT_NUM_FIELDS,
-			  quotechar::Char=DEFAULT_QUOTE, escapechar::Char=quotechar)
+			  quotechar::Char=DEFAULT_QUOTE, escapechar::Char=quotechar,
+			  header_exists::Bool=DEFAULT_HEADER_EXISTS)
     buff = Vector{UInt8}()
     resize!(buff, line_buff_len)
 
     fields = BufferedVector{WeakRefString{UInt8}}()
     resize!(fields, fields_buff_len)
 
-    File(input, UInt8(delim), UInt8(quotechar), UInt8(escapechar), eager_parse_fields, buff, fields)
+    File(input, UInt8(delim), UInt8(quotechar), UInt8(escapechar), header_exists,
+		eager_parse_fields, buff, fields)
 end
 
 function Base.iterate(f::File, state::Int = 1)
