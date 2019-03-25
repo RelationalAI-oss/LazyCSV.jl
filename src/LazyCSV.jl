@@ -11,6 +11,7 @@ include("util.jl")
 const IntTp = UInt64
 include("buffered_vector.jl")
 include("file.jl")
+include("consumer.jl")
 
 const ZERO_UINT8 = UInt8(0)
 const ZERO = IntTp(0)

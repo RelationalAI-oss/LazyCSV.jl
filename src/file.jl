@@ -101,28 +101,34 @@ function count_fields(csv_file::File)
 	counter
 end
 
-function csv_string(buff::IOBuffer, csv_file::File)
+function csv_field_string(buff::IO, csv_file::File, field, i)
+	quotechar = Char(csv_file.quotechar)
+	escapechar = Char(csv_file.escapechar)
+	delim = Char(csv_file.delim)
+	has_delim = occursin(delim, field)
+	has_quote = occursin(quotechar, field)
+	if has_delim || has_quote
+		if has_quote
+			field_escape_quotes = replace(field, quotechar => "$escapechar$quotechar")
+			write(buff, "$quotechar$field_escape_quotes$quotechar")
+		else
+			write(buff, "$quotechar$field$quotechar")
+		end
+	else
+		write(buff, field)
+	end
+	if i < length(csv_file.fields_buff)
+		write(buff, csv_file.delim)
+	end
+end
+
+function csv_string(buff::IO, csv_file::File)
+	print_consumer = PrintConsumer(buff)
+	consume(print_consumer, csv_file)
 	for line in csv_file
 		i = 1
 		for field in csv_file.fields_buff
-			quotechar = Char(csv_file.quotechar)
-			escapechar = Char(csv_file.escapechar)
-			delim = Char(csv_file.delim)
-			has_delim = occursin(delim, field)
-			has_quote = occursin(quotechar, field)
-			if has_delim || has_quote
-				if has_quote
-					field_escape_quotes = replace(field, quotechar => "$escapechar$quotechar")
-					write(buff, "$quotechar$field_escape_quotes$quotechar")
-				else
-					write(buff, "$quotechar$field$quotechar")
-				end
-			else
-				write(buff, field)
-			end
-			if i < length(csv_file.fields_buff)
-				write(buff, csv_file.delim)
-			end
+			csv_field_string(buff, csv_file, field, i)
 			i += 1
 		end
 		write(buff, "\n")
