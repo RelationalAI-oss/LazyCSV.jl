@@ -49,16 +49,18 @@ function record_length(rec_type::UntypedRecord)
 end
 
 const NO_TYPE = 1
-const INT_TYPE = 2
-const FLOAT_TYPE = 3
-const STRING_TYPE = 4
-const OTHER_TYPE = 5
+const CHAR_TYPE = 2
+const INT_TYPE = 3
+const FLOAT_TYPE = 4
+const STRING_TYPE = 5
+const OTHER_TYPE = 6
 
 const FieldType = Int
 const FieldUnionType = Vector{FieldType}
 
 get_field_type(::Type{Int}) = INT_TYPE
 get_field_type(::Type{Float64}) = FLOAT_TYPE
+get_field_type(::Type{Char}) = CHAR_TYPE
 get_field_type(::Type{String}) = STRING_TYPE
 get_field_type(::Type{T}) where {T} = OTHER_TYPE
 
@@ -88,23 +90,23 @@ end
 
 struct TypedRecord{FIELD_HANDLERS <: Tuple} <: RecordType
     field_types::Vector{FieldUnionType}
-	other_type_handlers::FIELD_HANDLERS
 	fallback_type::FieldType
+	other_type_handlers::FIELD_HANDLERS
 	function TypedRecord(field_types::Vector{FieldUnionType}=Vector{FieldUnionType}(),
 		                 fallback_type::FieldType=NO_TYPE,
 						 other_type_handlers::FIELD_HANDLERS=Tuple{}()) where {FIELD_HANDLERS}
-		new{FIELD_HANDLERS}(field_types, other_type_handlers, fallback_type)
+		new{FIELD_HANDLERS}(field_types, fallback_type, other_type_handlers)
 	end
 end
 
 function TypedRecord(field_types::Type{T},
 					 fallback_type::FieldType=NO_TYPE,
 					 other_type_handlers::FIELD_HANDLERS=Tuple{}()) where {FIELD_HANDLERS, T <: Tuple}
-	TypedRecord(get_field_union_types(field_types), other_type_handlers, fallback_type)
+	TypedRecord(get_field_union_types(field_types), fallback_type, other_type_handlers)
 end
 
 function record_length(rec_type::TypedRecord)
-    length(rec_type.field_types) == 0 ? UnknownRecordLength() : FixedRecordLength(rec_type.num_fields)
+    length(rec_type.field_types) == 0 ? UnknownRecordLength() : FixedRecordLength(length(rec_type.field_types))
 end
 
 struct PrintConsumer{REC_TYPE <:RecordType, IO_TP <: IO} <: DataConsumer
@@ -118,8 +120,10 @@ const TypedPrintConsumer{IO_TP} = PrintConsumer{TypedRecord, IO_TP}
 function UntypedPrintConsumer(out::IO_TP, num_fields::Int=-1) where {IO_TP}
 	UntypedPrintConsumer{IO_TP}(out, UntypedRecord(num_fields), Vector{String}())
 end
-function TypedPrintConsumer(out::IO_TP, num_fields::Int=-1) where {IO_TP}
-	TypedPrintConsumer{IO_TP}(out, TypedRecord(num_fields), Vector{String}())
+function TypedPrintConsumer(out::IO_TP, field_types::Type{T},
+							fallback_type::FieldType=NO_TYPE,
+							other_type_handlers=Tuple{}()) where {IO_TP, T}
+	TypedPrintConsumer{IO_TP}(out, TypedRecord(field_types, fallback_type, other_type_handlers), Vector{String}())
 end
 PrintConsumer(out::IO_TP, num_fields::Int=-1) where {IO_TP} = UntypedPrintConsumer(out, num_fields)
 
@@ -132,55 +136,60 @@ function produce_header(pc::UntypedPrintConsumer, f::File)
 	i = 0
 	for field_header in pc.headers
 		i += 1
-		csv_field_string(pc.out, f, field_header, i)
+		csv_field_string(pc.out, f, field_header, i, true)
 	end
 	j = i
 	for n in (i+1):length(record_length(pc.rec_type))
 		j += 1
-		csv_field_string(pc.out, f, "$n", n)
+		csv_field_string(pc.out, f, "$n", n, true)
 	end
 	j > 0 && write(pc.out, "\n")
 end
 
 function type_str(tp::FieldType)
 	    if tp == INT_TYPE;    "int"
+	elseif tp == CHAR_TYPE;   "char"
 	elseif tp == FLOAT_TYPE;  "float"
 	elseif tp == STRING_TYPE; "string"
 	else;                     "other"
 	end
 end
 
-type_str(tp::FieldUnionType) = join(tp, ",")
+type_str(tp::FieldUnionType) = join(map(type_str, tp), ",")
 
 type_str_in_header(tp::FieldUnionType) = " ($(type_str(tp)))"
 
-function type_str_in_header(pc::TypedPrintConsumer, i::Int)
-	if i <= length(pc.rec_type)
-		type_str_in_header(pc.rec_type[i])
+function field_type(rec_type::TypedRecord, i::Int)
+	if i <= length(rec_type.field_types)
+		rec_type.field_types[i]
 	else
-		type_str_in_header(OTHER_TYPE)
+		OTHER_TYPE
 	end
+end
+
+function type_str_in_header(pc::TypedPrintConsumer, i::Int)
+	type_str_in_header(field_type(pc.rec_type, i))
 end
 
 function produce_header(pc::TypedPrintConsumer, f::File)
 	i = 0
 	for field_header in pc.headers
 		i += 1
-		csv_field_string(pc.out, f, "$field_header$(type_str_in_header(pc, i))", i)
+		csv_field_string(pc.out, f, "$(strip(field_header))$(type_str_in_header(pc, i))", i, true)
 	end
 	
 	for n in (i+1):length(record_length(pc.rec_type))
-		csv_field_string(pc.out, f, "$n$(type_str_in_header(pc, n))", n)
+		csv_field_string(pc.out, f, "$n$(type_str_in_header(pc, n))", n, true)
 	end
 	write(pc.out, "\n")
 end
 function consume_field(pc::UntypedPrintConsumer, f::File, field_str, index::Int)
-    csv_field_string(pc.out, f, field_str, index)
+    csv_field_string(pc.out, f, strip(field_str), index)
     index == length(f.fields_buff) && write(pc.out, "\n")
 end
 function consume_field(pc::TypedPrintConsumer, f::File, field_str, index::Int)
-    
-	csv_field_string(pc.out, f, field_str, index)
+	force_quote = field_type(pc.rec_type, index) in [[STRING_TYPE], [CHAR_TYPE]]
+	csv_field_string(pc.out, f, strip(field_str), index, force_quote)
     index == length(f.fields_buff) && write(pc.out, "\n")
 end
 function consume_error(pc::PrintConsumer, f::File, line_str)
@@ -219,6 +228,15 @@ end
 function csv_string(csv_file::File, num_fields::Int=-1)
 	buff = IOBuffer()
 	csv_string(buff, csv_file, PrintConsumer(buff, num_fields))
+	seekstart(buff)
+	read(buff, String)
+end
+
+function typed_csv_string(csv_file::File, field_types::Type{T},
+						  fallback_type::FieldType=NO_TYPE,
+						  other_type_handlers=Tuple{}()) where {T}
+	buff = IOBuffer()
+	csv_string(buff, csv_file, TypedPrintConsumer(buff, field_types, fallback_type, other_type_handlers))
 	seekstart(buff)
 	read(buff, String)
 end
