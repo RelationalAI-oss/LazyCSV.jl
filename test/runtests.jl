@@ -95,6 +95,7 @@ function simple_csv_test(csv_str, num_lines, num_fields; delim=',', quotechar='"
 	csv_equals(replace(csv_str, "\r" => "\r\n"), generated_csv; delim=delim)
 end
 
+count_errors(output) = count_rec_errors(output) + count_field_errors(output)
 count_rec_errors(output) = count(x -> true, eachmatch(r"ERROR", output))
 count_field_errors(output) = count(x -> true, eachmatch(r"FIELD_ERR", output))
 
@@ -207,22 +208,37 @@ end
 	"""
 	biostats_csv1_out = typed_csv_string(csv_io(biostats_csv1), Tuple{String,Char,Int,Int,Int}; header_exists=true)
 	@test "\"Name (string)\",\"Sex (char)\",\"Age (int)\",\"Height (in) (int)\",\"Weight (lbs) (int)\"" == first(eachline(csv_io(biostats_csv1_out)))
-	@test count_rec_errors(biostats_csv1_out) == 0
+	@test count_errors(biostats_csv1_out) == 0
 	
 	biostats_csv2 = """
 	"Name",     "Sex", "Age", "Height (in)", "Weight (lbs)"
 	"Alex",       "M",   41,       74,      170
-	"Bert",       "M",   42.1,       68,      166
+	"Bert",       "M",   42.1,     68,      166
 	"Carl",       "M",   32,       70,      155
 	"""
 	biostats_csv2_out = typed_csv_string(csv_io(biostats_csv2), Tuple{String,Char,Int,Int,Int}; header_exists=true)
 	@test "\"Name (string)\",\"Sex (char)\",\"Age (int)\",\"Height (in) (int)\",\"Weight (lbs) (int)\"" == first(eachline(csv_io(biostats_csv2_out)))
+	@test count_rec_errors(biostats_csv2_out) == 0
 	@test count_field_errors(biostats_csv2_out) == 1
-	println(biostats_csv2_out)
+	
 	biostats_csv3_out = typed_csv_string(csv_io(biostats_csv2), Tuple{String,Char,Union{Int,Float64},Int,Int}; header_exists=true)
 	@test "\"Name (string)\",\"Sex (char)\",\"Age (int,float)\",\"Height (in) (int)\",\"Weight (lbs) (int)\"" == first(eachline(csv_io(biostats_csv3_out)))
-	@test count_rec_errors(biostats_csv3_out) == 0
-	println(biostats_csv3_out)
+	@test count_errors(biostats_csv3_out) == 0
+	
+	biostats_csv4 = """
+	"Name",     "Sex", "Age", "Height (in)", "Weight (lbs)"
+	"Alex",       "M",   41,       74,      170
+	"Bert",          ,   42.1,     68,      166
+	"Carl",       "M",   32,       70,      155
+	"""
+	biostats_csv4_out = typed_csv_string(csv_io(biostats_csv4), Tuple{String,Char,Union{Int,Float64},Int,Int}; header_exists=true)
+	@test "\"Name (string)\",\"Sex (char)\",\"Age (int,float)\",\"Height (in) (int)\",\"Weight (lbs) (int)\"" == first(eachline(csv_io(biostats_csv4_out)))
+	@test count_rec_errors(biostats_csv4_out) == 0
+	@test count_field_errors(biostats_csv4_out) == 1
+	
+	biostats_csv5_out = typed_csv_string(csv_io(biostats_csv4), Tuple{String,Union{Char,Missing},Union{Int,Float64},Int,Int}; header_exists=true)
+	@test "\"Name (string)\",\"Sex (char,missing)\",\"Age (int,float)\",\"Height (in) (int)\",\"Weight (lbs) (int)\"" == first(eachline(csv_io(biostats_csv5_out)))
+	@test count_errors(biostats_csv5_out) == 0
 end
 
 additional_fields = Dict("taxables.csv" => 4, "deniro.csv" => 3, "oscar_age_male.csv" => 2,
