@@ -210,7 +210,7 @@ function consume_field(pc::UntypedPrintConsumer, f::File, field_str, index::Int)
 	true
 end
 
-ismissing_value(field_valie) = isempty(field_value)
+ismissing_value(field_value) = isempty(field_value)
 
 function has_valid_type(tp::FieldType, field_value::AbstractString)
 	tp == NO_TYPE && return (false, NO_TYPE)
