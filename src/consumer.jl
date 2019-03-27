@@ -5,7 +5,7 @@ const SHOW_DETAILED_ERROR = false
 abstract type DataConsumer end
 function consume_header(fn::Function, consumer::DataConsumer, file::File, iter_res)
     new_iter_res = if iter_res !== nothing && file.header_exists
-        (line, state) = iter_res
+        ((pos, line), state) = iter_res
         i = 1
         for field_header in file.fields_buff
             fn(field_header, i)
@@ -21,13 +21,13 @@ end
 function consume_field() end
 function consume_rec_error() end
 function consume_field_error() end
-function consume_rec(pc::DataConsumer, f::File, line, fields)
+function consume_rec(pc::DataConsumer, f::File, pos::FilePos, line, fields)
     if !validate_record(pc.rec_type, length(fields))
-        consume_rec_error(pc, f, line)
+        consume_rec_error(pc, f, pos, line)
     else
         for (i, field) in enumerate(fields)
             if !consume_field(pc, f, field, i)
-				consume_field_error(pc, f, field, i, line)
+				consume_field_error(pc, f, field, i, pos, line)
 			end
         end
     end
@@ -239,12 +239,12 @@ function consume_field(pc::TypedPrintConsumer, f::File, field_str, index::Int)
 	isvalid
 end
 
-function consume_field_error(pc::PrintConsumer, f::File, field_str, index::Int, line)
+function consume_field_error(pc::PrintConsumer, f::File, field_str, index::Int, pos::FilePos, line)
 	csv_field_string(pc.out, f, "FIELD_ERR($(strip(field_str)))", index, true)
 	index == length(f.fields_buff) && write(pc.out, "\n")
 end
 
-function consume_rec_error(pc::PrintConsumer, f::File, line_str)
+function consume_rec_error(pc::PrintConsumer, f::File, pos::FilePos, line_str)
     write(pc.out, "ERROR >> ")
 	if SHOW_DETAILED_ERROR
 		write(pc.out, "$(length(f.fields_buff)) fields:")
@@ -261,15 +261,16 @@ function consume(consumer::DataConsumer, f::File)
     iter_res = iterate(f)
     iter_res = consume_header(consumer, f, iter_res)
     while iter_res !== nothing
-        (line, state) = iter_res
-        consume_rec(consumer, f, line, f.fields_buff)
+        ((pos, line), state) = iter_res
+        consume_rec(consumer, f, pos, line, f.fields_buff)
         iter_res = iterate(f, state)
     end
 end
 
 function csv_string(buff::IO, csv_file::File, consumer::DataConsumer = PrintConsumer(buff))
 	consume(consumer, csv_file)
-	for line in csv_file
+	for pos_line in csv_file
+		(pos, line) = pos_line
 		i = 1
 		for field in csv_file.fields_buff
 			csv_field_string(buff, csv_file, field, i)

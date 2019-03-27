@@ -8,6 +8,14 @@ mutable struct Counter
     v::Int
 end
 
+# Mutable File Position
+const MutFilePos = Counter
+
+# Immutable File Position
+struct FilePos
+	v::Int
+end
+
 struct File{IO_TYPE}
     input::IO_TYPE
     delim::UInt8      # the delimiter should be an ASCII character to fit in a single byte
@@ -18,18 +26,20 @@ struct File{IO_TYPE}
     line_buff::Vector{UInt8}
     fields_buff::BufferedVector{WeakRefString{UInt8}}
     current_line::Counter
+	current_byte_pos::MutFilePos
     function File(input::IO_TYPE, delim::UInt8, quotechar::UInt8, escapechar::UInt8,
 				  header_exists::Bool, eager_parse_fields::Bool, line_buff::Vector{UInt8},
-                  fields_buff::BufferedVector{WeakRefString{UInt8}}) where {IO_TYPE}
+                  fields_buff::BufferedVector{WeakRefString{UInt8}},
+				  start_file_pos::Int64) where {IO_TYPE}
         new{IO_TYPE}(input, delim, quotechar, escapechar, header_exists,
-					 eager_parse_fields, line_buff, fields_buff, Counter(0))
+					 eager_parse_fields, line_buff, fields_buff, Counter(0), MutFilePos(start_file_pos))
     end
 end
 
 function File(input::IO; delim::Char=DEFAULT_DELIM, eager_parse_fields::Bool=DEFAULT_EAGER_PARSE_FIELDS,
 			  line_buff_len::Int=DEFAULT_LINE_LEN, fields_buff_len::Int=DEFAULT_NUM_FIELDS,
 			  quotechar::Char=DEFAULT_QUOTE, escapechar::Char=quotechar,
-			  header_exists::Bool=DEFAULT_HEADER_EXISTS)
+			  header_exists::Bool=DEFAULT_HEADER_EXISTS, start_file_pos::Int64=0)
     buff = Vector{UInt8}()
     resize!(buff, line_buff_len)
 
@@ -37,17 +47,17 @@ function File(input::IO; delim::Char=DEFAULT_DELIM, eager_parse_fields::Bool=DEF
     resize!(fields, fields_buff_len)
 
     File(input, UInt8(delim), UInt8(quotechar), UInt8(escapechar), header_exists,
-		eager_parse_fields, buff, fields)
+		eager_parse_fields, buff, fields, start_file_pos)
 end
 
 function Base.iterate(f::File, state::Int = 1)
     if f.current_line.v + 1 == state
-        next_line = read_csv_line!(f)
-        if next_line === nothing
+        next_pos_line = read_csv_line!(f)
+        if next_pos_line === nothing
             nothing
         else
             f.current_line.v += 1
-            (next_line, state+1)
+            (next_pos_line, state+1)
         end
     else
         #TODO: shall we throw an error here?
@@ -59,7 +69,7 @@ end
 result_line_collection(f::File) = Vector{String}()
 result_collection(f::File) = Vector{Vector{String}}()
 
-function materialize_line(f::File, line)
+function materialize_line(f::File, pos::FilePos, line)
     line_vec = result_line_collection(f)
     for field in f.fields_buff
         push!(line_vec, string(field))
@@ -69,8 +79,9 @@ end
 
 function materialize(f::File, vec)
     counter = 0
-    while (line = read_csv_line!(f)) != nothing
-        push!(vec, materialize_line(f, line))
+    while (pos_line = read_csv_line!(f)) != nothing
+        (pos, line) = pos_line
+		push!(vec, materialize_line(f, pos, line))
         counter += 1
     end
     f.current_line.v = counter
@@ -87,7 +98,7 @@ end
 
 function count_lines(csv_file::File)
 	counter = UInt(0)
-	for line in csv_file
+	for pos_line in csv_file
 		counter += 1
 	end
 	counter
@@ -95,7 +106,7 @@ end
 
 function count_fields(csv_file::File)
 	counter = UInt(0)
-	for line in csv_file
+	for pos_line in csv_file
 		counter += num_fields_for_current_line(csv_file)
 	end
 	counter
