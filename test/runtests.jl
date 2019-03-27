@@ -17,19 +17,19 @@ function csv_io(csv::AbstractString)
 end
 csv_io(csv::IO) = csv
 
-function csv_count_lines(csv; header_exists=false)
+function csv_count_lines(csv; header_exists::Bool=false)
 	csv_file = LazyCSV.csvread(csv; header_exists=header_exists, eager_parse_fields=false)
 	count_lines(csv_file)
 end
 
-function csv_count_fields(csv; delim=',', header_exists=false, quotechar=LazyCSV.DEFAULT_QUOTE, escapechar=quotechar)
+function csv_count_fields(csv; delim=',', header_exists::Bool=false, quotechar=LazyCSV.DEFAULT_QUOTE, escapechar=quotechar)
 	csv_file = LazyCSV.csvread(csv; delim=delim, header_exists=header_exists, 
 	                           eager_parse_fields=true, quotechar=quotechar, escapechar=escapechar)
 	count_fields(csv_file)
 end
 
 function csv_string(csv, num_fields::Int = -1;
-	                delim=',', header_exists=false, quotechar=LazyCSV.DEFAULT_QUOTE, escapechar=quotechar)
+	                delim=',', header_exists::Bool=false, quotechar=LazyCSV.DEFAULT_QUOTE, escapechar=quotechar)
 	csv_file = LazyCSV.csvread(csv; delim=delim, header_exists=header_exists,
 	                           eager_parse_fields=true, quotechar=quotechar, escapechar=escapechar)
 	LazyCSV.csv_string(csv_file, num_fields)
@@ -74,13 +74,16 @@ function csv_line_equals(base_line, toaa_line; delim=',')
 	end
 end
 
-function simple_csv_test(csv_str, num_lines, num_fields; delim=',', quotechar='"', escapechar=quotechar)
+function simple_csv_test(csv_str, num_lines, num_fields; delim=',', quotechar='"',
+	                     escapechar=quotechar, header_exists::Bool=false)
 	computed_num_lines = csv_count_lines(csv_io(csv_str))
 	@test computed_num_lines == num_lines || error("$computed_num_lines != $num_lines in \n----------------\n$csv_str\n----------------")
 	computed_num_fields = csv_count_fields(csv_io(csv_str); delim=delim, quotechar=quotechar, escapechar=escapechar)
 	@test computed_num_fields == num_fields || error("$computed_num_fields != $num_fields in \n----------------\n$csv_str\n----------------")
-	csv_equals(replace(csv_str, "\r" => "\r\n"), csv_string(csv_io(csv_str);
-	           delim=delim, quotechar=quotechar, escapechar=escapechar); delim=delim)
+	generated_csv = csv_string(csv_io(csv_str);
+       delim=delim, quotechar=quotechar, escapechar=escapechar,
+	   header_exists=header_exists)
+	csv_equals(replace(csv_str, "\r" => "\r\n"), generated_csv; delim=delim)
 end
 
 @testset "LazyCSV tests" begin
@@ -140,7 +143,7 @@ end
 	"DEC",  337,  405,  432
 	"""
 	
-	simple_csv_test(airtravel_csv, 13, 52)
+	simple_csv_test(airtravel_csv, 13, 52; header_exists=true)
 	
 	biostats_csv = """
 	"Name",     "Sex", "Age", "Height (in)", "Weight (lbs)"
@@ -164,7 +167,7 @@ end
 	"Ruth",       "F",   28,       65,      131
 	"""
 	
-	simple_csv_test(biostats_csv, 19, 95)
+	simple_csv_test(biostats_csv, 19, 95; header_exists=true)
     
     quoted_csv3 = """
 	John,Doe,120 jefferson st.,Riverside, NJ, 08075
