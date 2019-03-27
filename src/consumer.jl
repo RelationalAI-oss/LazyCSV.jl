@@ -27,7 +27,7 @@ function consume_rec(pc::DataConsumer, f::File, line, fields)
     else
         for (i, field) in enumerate(fields)
             if !consume_field(pc, f, field, i)
-				consume_field_error(pc, f, field, i)
+				consume_field_error(pc, f, field, i, line)
 			end
         end
     end
@@ -239,7 +239,7 @@ function consume_field(pc::TypedPrintConsumer, f::File, field_str, index::Int)
 	isvalid
 end
 
-function consume_field_error(pc::PrintConsumer, f::File, field_str, index::Int)
+function consume_field_error(pc::PrintConsumer, f::File, field_str, index::Int, line)
 	csv_field_string(pc.out, f, "FIELD_ERR($(strip(field_str)))", index, true)
 	index == length(f.fields_buff) && write(pc.out, "\n")
 end
