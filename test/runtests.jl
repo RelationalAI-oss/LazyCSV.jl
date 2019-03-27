@@ -75,9 +75,9 @@ function strip_csv_line(line, delim)
 	line
 end
 
-function csv_line_equals(base_line, toaa_line; delim=',')
-	if base_line != toaa_line
-		strip_csv_line(base_line, delim) == strip_csv_line(toaa_line, delim)
+function csv_line_equals(base_line, to_line; delim=',')
+	if base_line != to_line
+		strip_csv_line(base_line, delim) == strip_csv_line(to_line, delim)
 	else
 		true
 	end
