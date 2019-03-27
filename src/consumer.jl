@@ -231,15 +231,16 @@ function consume_field(pc::TypedPrintConsumer, f::File, field_str, index::Int)
 	field_tp = field_type(pc.rec_type, index)
 	force_quote = field_tp in [[STRING_TYPE], [CHAR_TYPE]]
 	field_value = strip(field_str)
-	csv_field_string(pc.out, f, field_value, index, force_quote)
-    index == length(f.fields_buff) && write(pc.out, "\n")
 	(isvalid, valid_type) = has_valid_type(field_tp, field_value)
+	if isvalid
+		csv_field_string(pc.out, f, field_value, index, force_quote)
+	    index == length(f.fields_buff) && write(pc.out, "\n")
+	end
 	isvalid
 end
 
 function consume_field_error(pc::PrintConsumer, f::File, field_str, index::Int)
-	write(pc.out, "FIELD_ERR")
-	index < length(f.fields_buff) && write(pc.out, f.delim)
+	csv_field_string(pc.out, f, "FIELD_ERR($(strip(field_str)))", index, true)
 	index == length(f.fields_buff) && write(pc.out, "\n")
 end
 
