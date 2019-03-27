@@ -29,16 +29,14 @@ In addition, if `eager_parse_fields` is true, it will also accumulate the fields
 vector of `WeakRefString`) into the `fields_buff` in the file.
 """
 function read_csv_line!(f::File, eager_parse_fields::Bool=f.eager_parse_fields)
-    read_csv_line!(f.input, f.line_buff, f.delim, f.quotechar, f.escapechar, f.fields_buff, eager_parse_fields)
-end
-
-function read_csv_line!(s::IO, buff::IOBuffer, delim::UInt8, quotechar::UInt8, escapechar::UInt8,
-                        fields::BufferedVector{WeakRefString{UInt8}}, eager_parse_fields::Bool)
-    read_csv_line!(s, buff.data, delim, quotechar, escapechar, fields, eager_parse_fields)
+    read_csv_line!(f.input, f.line_buff, f.delim, f.quotechar, f.escapechar, f.fields_buff,
+                   eager_parse_fields, f.current_byte_pos)
 end
 
 function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8, quotechar::UInt8, escapechar::UInt8,
-                        fields::BufferedVector{WeakRefString{UInt8}}, eager_parse_fields::Bool)
+                        fields::BufferedVector{WeakRefString{UInt8}}, eager_parse_fields::Bool, pos::MutFilePos)
+    prev_pos = pos.v
+    current_pos = prev_pos
     # take the pointer to buffer only once
     buff_ptr::Ptr{UInt8} = pointer(buff)
     # cache the buffer length
@@ -74,6 +72,7 @@ function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8, quotechar::UIn
         while (current_char != ASCII_NEWLINE && current_char != ASCII_RETURN) && !eof(s)
             prev_char::UInt8 = current_char
             current_char = Parsers.readbyte(s)
+            current_pos += 1
             
             # skip the leading whitespaces if not inside a quote
             num_bytes_read == ZERO && !inside_quote && iswhitespace(current_char) && continue
@@ -151,7 +150,8 @@ function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8, quotechar::UIn
             # correctly set the number of fields read to `num_fields_read`
             fields.size = num_fields_read
         end
-        WeakRefString{UInt8}(buff_ptr, num_bytes_read)
+        pos.v = current_pos
+        (FilePos(prev_pos), WeakRefString{UInt8}(buff_ptr, num_bytes_read))
     else
         # if fields were supposed to be parsed eagerly, then correctly set the size of buffer to zero
         eager_parse_fields && (fields.size = ZERO)
