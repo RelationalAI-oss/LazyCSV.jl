@@ -101,13 +101,13 @@ function count_fields(csv_file::File)
 	counter
 end
 
-function csv_field_string(buff::IO, csv_file::File, field, i)
+function csv_field_string(buff::IO, csv_file::File, field, i, force_quote::Bool=false)
 	quotechar = Char(csv_file.quotechar)
 	escapechar = Char(csv_file.escapechar)
 	delim = Char(csv_file.delim)
 	has_delim = occursin(delim, field)
 	has_quote = occursin(quotechar, field)
-	if has_delim || has_quote
+	if has_delim || has_quote || force_quote
 		if has_quote
 			field_escape_quotes = replace(field, quotechar => "$escapechar$quotechar")
 			write(buff, "$quotechar$field_escape_quotes$quotechar")
