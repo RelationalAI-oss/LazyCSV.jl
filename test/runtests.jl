@@ -35,6 +35,15 @@ function csv_string(csv, num_fields::Int = -1;
 	LazyCSV.csv_string(csv_file, num_fields)
 end
 
+function typed_csv_string(csv, field_types::Type{T}, fallback_type::LazyCSV.FieldType=LazyCSV.NO_TYPE,
+						  other_type_handlers=Tuple{}();
+						  delim=',', header_exists::Bool=false,
+	                      quotechar=LazyCSV.DEFAULT_QUOTE, escapechar=quotechar) where {T}
+	csv_file = LazyCSV.csvread(csv; delim=delim, header_exists=header_exists,
+	                           eager_parse_fields=true, quotechar=quotechar, escapechar=escapechar)
+	LazyCSV.typed_csv_string(csv_file, field_types, fallback_type, other_type_handlers)
+end
+
 function csv_equals(base_csv, to_csv; delim=',')
 	base_csv_io = csv_io(base_csv)
 	to_csv_io = csv_io(to_csv)
@@ -85,6 +94,9 @@ function simple_csv_test(csv_str, num_lines, num_fields; delim=',', quotechar='"
 	   header_exists=header_exists)
 	csv_equals(replace(csv_str, "\r" => "\r\n"), generated_csv; delim=delim)
 end
+
+count_rec_errors(output) = count(x -> true, eachmatch(r"ERROR", output))
+count_field_errors(output) = count(x -> true, eachmatch(r"FIELD_ERR", output))
 
 @testset "LazyCSV tests" begin
 @testset "Untyped Tests" begin
@@ -180,11 +192,43 @@ end
 	"""
 
 	quoted_csv3_out = csv_string(csv_io(quoted_csv3), 6)
-	@test count(x -> true, eachmatch(r"ERROR", quoted_csv3_out)) == 2
+	@test count_rec_errors(quoted_csv3_out) == 2
+	
+	simple_csv_test(airtravel_csv, 13, 52; header_exists=true)
+
+end
+
+@testset "Typed Tests" begin
+	biostats_csv1 = """
+	"Name",     "Sex", "Age", "Height (in)", "Weight (lbs)"
+	"Alex",       "M",   41,       74,      170
+	"Bert",       "M",   42,       68,      166
+	"Carl",       "M",   32,       70,      155
+	"""
+	biostats_csv1_out = typed_csv_string(csv_io(biostats_csv1), Tuple{String,Char,Int,Int,Int}; header_exists=true)
+	@test "\"Name (string)\",\"Sex (char)\",\"Age (int)\",\"Height (in) (int)\",\"Weight (lbs) (int)\"" == first(eachline(csv_io(biostats_csv1_out)))
+	@test count_rec_errors(biostats_csv1_out) == 0
+	
+	biostats_csv2 = """
+	"Name",     "Sex", "Age", "Height (in)", "Weight (lbs)"
+	"Alex",       "M",   41,       74,      170
+	"Bert",       "M",   42.1,       68,      166
+	"Carl",       "M",   32,       70,      155
+	"""
+	biostats_csv2_out = typed_csv_string(csv_io(biostats_csv2), Tuple{String,Char,Int,Int,Int}; header_exists=true)
+	@test "\"Name (string)\",\"Sex (char)\",\"Age (int)\",\"Height (in) (int)\",\"Weight (lbs) (int)\"" == first(eachline(csv_io(biostats_csv2_out)))
+	@test count_field_errors(biostats_csv2_out) == 1
+	println(biostats_csv2_out)
+	biostats_csv3_out = typed_csv_string(csv_io(biostats_csv2), Tuple{String,Char,Union{Int,Float64},Int,Int}; header_exists=true)
+	@test "\"Name (string)\",\"Sex (char)\",\"Age (int,float)\",\"Height (in) (int)\",\"Weight (lbs) (int)\"" == first(eachline(csv_io(biostats_csv3_out)))
+	@test count_rec_errors(biostats_csv3_out) == 0
+	println(biostats_csv3_out)
 end
 
 additional_fields = Dict("taxables.csv" => 4, "deniro.csv" => 3, "oscar_age_male.csv" => 2,
                          "oscar_age_female.csv" => 2, "freshman_lbs.csv" => 2)
+
+files_without_header = Dict{String, Int}()
 
 @testset "Untyped File Tests" begin
 	csv_dir = abspath(joinpath(dirname(@__FILE__), "sample_csv"))
@@ -197,9 +241,11 @@ additional_fields = Dict("taxables.csv" => 4, "deniro.csv" => 3, "oscar_age_male
 		line_count = count(x -> x == '\n' || x == '\r', csv_file_str)
 		delim_count = count(x -> x == ',', csv_file_str)
 		field_count = delim_count + line_count
-		simple_csv_test(csv_file_str, line_count, field_count-get(additional_fields, csv_file, 0))
+		simple_csv_test(csv_file_str, line_count, field_count-get(additional_fields,
+		                csv_file, 0); header_exists=!haskey(files_without_header, csv_file))
 	end
 end
+
 end
 
 function use_csv_jl(filename)
