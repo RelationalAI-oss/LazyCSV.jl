@@ -16,6 +16,10 @@ struct FilePos
 	v::Int
 end
 
+Base.hash(x::FilePos, h::UInt) = hash(x.v)
+Base.isless(x::FilePos, y::FilePos) = isless(x.v, y.v)
+Base.isequal(x::FilePos, y::FilePos) = x.v == y.v
+
 struct File{IO_TYPE}
     input::IO_TYPE
     delim::UInt8      # the delimiter should be an ASCII character to fit in a single byte
@@ -32,11 +36,13 @@ struct File{IO_TYPE}
                   fields_buff::BufferedVector{WeakRefString{UInt8}},
 				  start_file_pos::Int64) where {IO_TYPE}
         new{IO_TYPE}(input, delim, quotechar, escapechar, header_exists,
-					 eager_parse_fields, line_buff, fields_buff, Counter(0), MutFilePos(start_file_pos))
+					 eager_parse_fields, line_buff, fields_buff, Counter(0),
+                     MutFilePos(start_file_pos))
     end
 end
 
-function File(input::IO; delim::Char=DEFAULT_DELIM, eager_parse_fields::Bool=DEFAULT_EAGER_PARSE_FIELDS,
+function File(input::IO; delim::Char=DEFAULT_DELIM,
+	          eager_parse_fields::Bool=DEFAULT_EAGER_PARSE_FIELDS,
 			  line_buff_len::Int=DEFAULT_LINE_LEN, fields_buff_len::Int=DEFAULT_NUM_FIELDS,
 			  quotechar::Char=DEFAULT_QUOTE, escapechar::Char=quotechar,
 			  header_exists::Bool=DEFAULT_HEADER_EXISTS, start_file_pos::Int64=0)
@@ -133,4 +139,4 @@ function csv_field_string(buff::IO, csv_file::File, field, i, force_quote::Bool=
 	end
 end
 
-export num_fields_for_current_line, count_lines, count_fields
+export File, FilePos, num_fields_for_current_line, count_lines, count_fields

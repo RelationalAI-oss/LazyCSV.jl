@@ -1,3 +1,9 @@
+"""
+At the beginning of a page that uses a Unicode character encoding you may find some bytes
+that represent the Unicode code point U+FEFF BYTE ORDER MARK (abbreviated as BOM ).
+
+This helper function just skips BOM if present.
+"""
 function consumeBOM!(io)
     # BOM character detection
     startpos = position(io)
@@ -25,6 +31,7 @@ const ASCII_NEWLINE = UInt8('\n')
                           c == ASCII_TAB ||
                           c == ASCII_RETURN ||
                           c == ASCII_NEWLINE
-
-# resize! will be called rarely and it's better not to be inlined to avoid code explosion
+"""
+`resize!` will be called rarely and it's better not to be inlined to avoid code explosion
+"""
 @noinline resize_vec!(vec::AbstractVector{T}, new_size) where {T} = resize!(vec, new_size)

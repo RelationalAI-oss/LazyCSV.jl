@@ -1,3 +1,13 @@
+"""
+`BufferedVector` is a wrapper around `Vector` that avoid shrinking the inner `Vector`
+
+This is done by keeping a `size` in itself that represets the number of usable elements in
+the unerlying `Vector`.
+
+Note: if an element is added to this `Vector`, it might not get garbage collected, as a
+      pointer to it might remain in the underlying `Vector`. Thus, storing huge objects in
+      `BufferedVector` is not encouraged.
+"""
 mutable struct BufferedVector{T} <: AbstractVector{T}
     buff::Vector{T}
     size::IntTp
@@ -10,7 +20,9 @@ function Base.iterate(vec::BufferedVector{T}, state::Int=1) where {T}
 end
 Base.resize!(vec::BufferedVector{T}, new_size::Int) where {T} = resize!(vec.buff, new_size)
 function Base.setindex!(vec::BufferedVector{T}, val, key) where {T}
-    setindex!(vec.buff, val, key)
+    # `setindex!` is supposed to be called in a sequence
+    @assert key == vec.size + 1
+    push!(vec.buff, val)
     vec.size += 1
     nothing
 end

@@ -33,8 +33,30 @@ function read_csv_line!(f::File, eager_parse_fields::Bool=f.eager_parse_fields)
                    eager_parse_fields, f.current_byte_pos)
 end
 
-function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8, quotechar::UInt8, escapechar::UInt8,
-                        fields::BufferedVector{WeakRefString{UInt8}}, eager_parse_fields::Bool, pos::MutFilePos)
+"""
+This function is at the hear of LazyCSV and it's actually an inlined parser-combinator
+that know how to parse a line of a CSV source.
+
+It currently supports specifying:
+  - `delim`: CSV delimiter character
+  - `quotechar`: CSV quote character
+  - `escapechar`: CSV escape character for escaping the quote and delimiter characters
+
+In addition, by passing `eager_parse_fields=true`, then all the fields are also parsed
+and stored as separate `WeakRefString`s. Otherwise, if `eager_parse_fields=false`, then
+fields are not parsed and only a single line is extracted from the input (as a
+`WeakRefString`).
+
+This function returns a `Tuple{FilePos, WeakRefString{UInt8}}`. The first element of
+this tuple contains the byte position of the starting point of this record (in the
+source) and the second element is the record line content.
+
+Note: the logic is a little bit complex, but being a core function, it's intended to
+      be the most efficient code one can write. Any optimization is welcome!
+"""
+function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8, quotechar::UInt8,
+                        escapechar::UInt8, fields::BufferedVector{WeakRefString{UInt8}},
+                        eager_parse_fields::Bool, pos::MutFilePos)
     prev_pos = pos.v
     current_pos = prev_pos
     # take the pointer to buffer only once
@@ -42,7 +64,8 @@ function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8, quotechar::UIn
     # cache the buffer length
     buff_len::IntTp = IntTp(length(buff))
     
-    # accumulates the number of bytes read for the current line (it won't count the leading whitespaces)
+    # accumulates the number of bytes read for the current line
+    # (it won't count the leading whitespaces)
     num_bytes_read::IntTp = ZERO
     
     # the buffer for storing fields (if `eager_parse_fields` is true)
@@ -54,8 +77,9 @@ function read_csv_line!(s::IO, buff::Vector{UInt8}, delim::UInt8, quotechar::UIn
     # stores the index of the separator for the previous field.
     prev_field_index::IntTp = ZERO
 
-    # `inside_quote` determines whether the given fields is quoted and we are scanning inside the quote
-    # this variable is initialized here, as there might be leading whitespaces inside the quote
+    # `inside_quote` determines whether the given fields is quoted and we are scanning
+    # inside the quote this variable is initialized here, as there might be leading
+    # whitespaces inside the quote
     inside_quote::Bool = false
     
     same_quote_and_escape::Bool = quotechar == escapechar
@@ -166,19 +190,13 @@ Read CSV from `file`. Returns a tuple of 2 elements:
 1. A tuple of columns each either a `Vector`, or `StringArray`
 2. column names if `header_exists=true`, empty array otherwise
 # Arguments:
-- `input`: an IO object
+- `input`: an input file path or an IO object
 - `delim`: the delimiter character
-- `spacedelim`: (Bool) parse space-delimited files. `delim` has no effect if true.
+- `lazy`: if `true`, then an instance of `LazyCSV.File` is returned.
+          Otherwise, if `false`, the result gets materialized and then returned.
 - `quotechar`: character used to quote strings, defaults to `"`
 - `escapechar`: character used to escape quotechar in strings. (could be the same as quotechar)
-- `commentchar`: ignore lines that begin with commentchar
-- `nrows`: number of rows in the file. Defaults to `0` in which case we try to estimate this.
-- `skiplines_begin`: skips specified number of lines at the beginning of the file
 - `header_exists`: boolean specifying whether CSV file contains a header
-- `nastrings`: strings that are to be considered NA. Defaults to `TextParse.NA_STRINGS`
-- `colnames`: manually specified column names. Could be a vector or a dictionary from Int index (the column) to String column name.
-- `colparsers`: Parsers to use for specified columns. This can be a vector or a dictionary from column name / column index (Int) to a "parser". The simplest parser is a type such as Int, Float64. It can also be a `dateformat"..."`, see [CustomParser](@ref) if you want to plug in custom parsing behavior
-- `type_detect_rows`: number of rows to use to infer the initial `colparsers` defaults to 20.
 """
 function csvread(input::Union{IO,AbstractString}; delim::Union{Char, Nothing}=nothing,
                  lazy=true, eager_parse_fields=DEFAULT_EAGER_PARSE_FIELDS,
@@ -192,6 +210,8 @@ function csvread(input::Union{IO,AbstractString}; delim::Union{Char, Nothing}=no
                 delim = '\t'
             elseif endswith(input, ".wsv")
                 delim = ' '
+            elseif endswith(input, ".tbl")
+                delim = '|'
             else
                 delim = ','
             end
