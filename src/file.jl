@@ -4,6 +4,11 @@ const DEFAULT_LINE_LEN = 2048
 const DEFAULT_NUM_FIELDS = 16
 const DEFAULT_EAGER_PARSE_FIELDS = true
 
+"""
+A mutable struct for keeping a counter
+
+This struct can be used as a field of another immutable struct
+"""
 mutable struct Counter
     v::Int
 end
@@ -21,16 +26,20 @@ Base.isless(x::FilePos, y::FilePos) = isless(x.v, y.v)
 Base.isequal(x::FilePos, y::FilePos) = x.v == y.v
 
 struct File{IO_TYPE}
-    input::IO_TYPE
+    input::IO_TYPE    # the underlying input IO to be parsed
     delim::UInt8      # the delimiter should be an ASCII character to fit in a single byte
 	quotechar::UInt8  # the quote character should be an ASCII character to fit in a single byte
 	escapechar::UInt8 # the escape character should be an ASCII character to fit in a single byte
-    header_exists::Bool
-    eager_parse_fields::Bool
-    line_buff::Vector{UInt8}
-    fields_buff::BufferedVector{WeakRefString{UInt8}}
-    current_line::Counter
-	current_byte_pos::MutFilePos
+    header_exists::Bool      # does this file have a header?
+    eager_parse_fields::Bool # should we parse the fields eagerly, or just parsing a line
+	                         # (i.e., a record) without digging into its fields is enough?
+							 # This is useful for skipping records.
+    line_buff::Vector{UInt8} # A buffer that contains the line for the current record.
+	                         # All the `WeakRefString` instances point to a location in this
+							 # `Vector`.
+    fields_buff::BufferedVector{WeakRefString{UInt8}} # a buffer for the fields of the current record
+    current_line::Counter        # The counter that keeps the index of current line (i.e., record)
+	current_byte_pos::MutFilePos # The byte position of the current row (i.e., record)
     function File(input::IO_TYPE, delim::UInt8, quotechar::UInt8, escapechar::UInt8,
 				  header_exists::Bool, eager_parse_fields::Bool, line_buff::Vector{UInt8},
                   fields_buff::BufferedVector{WeakRefString{UInt8}},
@@ -94,6 +103,9 @@ function materialize(f::File, vec)
     nothing
 end
 
+"""
+A helper function for parsing and materializing the while `File` into a `Vector`
+"""
 function materialize(f::File)
     materialize(f, result_collection(f))
 end
@@ -102,6 +114,9 @@ function num_fields_for_current_line(f::File)
     length(f.fields_buff)
 end
 
+"""
+A helper function for counting the number of lines in a `File`
+"""
 function count_lines(csv_file::File)
 	counter = UInt(0)
 	for pos_line in csv_file
@@ -110,6 +125,9 @@ function count_lines(csv_file::File)
 	counter
 end
 
+"""
+A helper function for counting the number of fields in a `File`
+"""
 function count_fields(csv_file::File)
 	counter = UInt(0)
 	for pos_line in csv_file
@@ -118,6 +136,9 @@ function count_fields(csv_file::File)
 	counter
 end
 
+"""
+A helper function for converting a CSV field value to string and writing it into an output buffer
+"""
 function csv_field_string(buff::IO, csv_file::File, field, i, force_quote::Bool=false)
 	quotechar = Char(csv_file.quotechar)
 	escapechar = Char(csv_file.escapechar)

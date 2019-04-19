@@ -1,3 +1,14 @@
+"""
+This is sample `DataConsumer` that is used for ingesting the parsed data from `LazyCSV`.
+It works in two modes:
+  - untyped: in this mode, each record is read and its fields are parsed, but no type
+             type checking is done on them and the string value of fields are printed to
+			 the output stream. The only error detected in this mode is having an incorrect
+			 number of fields in a record.
+  - typed: in this mode, fields are parsed to their desired format and type errors are
+           detected. Finally, the values are printed to the output stream in a table-like
+		   format, where the type of each column is also printed in the header.
+"""
 struct PrintConsumer{REC_TYPE <:RecordType, IO_TP <: IO} <: DataConsumer
     out::IO_TP
 	rec_type::REC_TYPE
@@ -5,11 +16,11 @@ struct PrintConsumer{REC_TYPE <:RecordType, IO_TP <: IO} <: DataConsumer
 end
 
 const UntypedPrintConsumer{IO_TP} = PrintConsumer{UntypedRecord, IO_TP}
-const TypedPrintConsumer{IO_TP} = PrintConsumer{TypedRecord, IO_TP}
 function UntypedPrintConsumer(out::IO_TP, num_fields::Int=-1) where {IO_TP}
 	UntypedPrintConsumer{IO_TP}(out, UntypedRecord(num_fields), Vector{String}())
 end
 
+const TypedPrintConsumer{IO_TP} = PrintConsumer{TypedRecord, IO_TP}
 function TypedPrintConsumer(out::IO_TP, field_types::Type{T},
 							fallback_type::FieldType=NO_TYPE,
 							other_type_handlers=Tuple{}()) where {IO_TP, T}
@@ -128,6 +139,10 @@ function csv_string(buff::IO, csv_file::File, consumer::DataConsumer = PrintCons
 	end
 end
 
+"""
+Parses a CSV file in an untyped way and prints it back to the output stream.
+If a row has an inconsistent number of fileds, it will be reported as an error.
+"""
 function csv_string(csv_file::File, num_fields::Int=-1)
 	buff = IOBuffer()
 	csv_string(buff, csv_file, PrintConsumer(buff, num_fields))
@@ -135,6 +150,12 @@ function csv_string(csv_file::File, num_fields::Int=-1)
 	read(buff, String)
 end
 
+"""
+Parses a CSV file in an typed way (by parsing the values to their intended types) and prints
+it back to the output stream.
+If a row has an inconsistent number of fileds, it will be reported as an error.
+Also, if a field has an icorrect type, it'll also be reported as an error.
+"""
 function typed_csv_string(csv_file::File, field_types::Type{T},
 						  fallback_type::FieldType=NO_TYPE,
 						  other_type_handlers=Tuple{}()) where {T}
