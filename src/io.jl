@@ -5,6 +5,7 @@ A helper function for converting an `input_source` to an IO if not already an IO
 """
 function read_input_data(input_source::AbstractString; kwargs...)
     #TODO this should be done async
+    #TODO(MD): we should drop this as soon as we have a better option for downloading from URL
     if startswith(input_source, "https://") || startswith(input_source, "http://")
         HTTP.get(input_source; kwargs...)
     else
