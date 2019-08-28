@@ -278,9 +278,9 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[Testy]]
 deps = ["Test"]
-git-tree-sha1 = "f9a7b901aca77ac9ed1f48b78811e474b60fc4c8"
+git-tree-sha1 = "939b2546f1e315b0368255531cd0174f9745b1db"
 repo-rev = "master"
-repo-url = "https://github.com/relationalai-oss/Testy.jl"
+repo-url = "https://github.com/RelationalAI-oss/Testy.jl"
 uuid = "3e3c03f2-1a94-11e9-2981-050a4ca824ab"
 version = "0.1.0"
 
