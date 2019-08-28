@@ -133,7 +133,7 @@ function materialize(f::File, vec)
         counter += 1
     end
     f.current_line.v = counter
-    nothing
+    vec
 end
 
 """
