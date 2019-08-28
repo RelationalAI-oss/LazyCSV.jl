@@ -1,5 +1,5 @@
 using LazyCSV
-using Testy
+using Test
 
 DO_BENCHMARK = false
 DEBUG_ISSUE = false
